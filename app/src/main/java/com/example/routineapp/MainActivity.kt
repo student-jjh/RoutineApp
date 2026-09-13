@@ -45,13 +45,14 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
@@ -111,6 +112,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoutineScreen(
     database: AppDatabase,
@@ -150,6 +152,7 @@ private fun RoutineScreen(
     var monthWorkoutCount by remember { mutableStateOf(0) }
     var monthWorkoutMinutes by remember { mutableStateOf(0L) }
     var healthConnectMessage by remember { mutableStateOf<String?>(null) }
+    var isHealthRefreshing by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
@@ -233,6 +236,7 @@ private fun RoutineScreen(
                 healthConnectMessage = "운동 데이터를 읽지 못했습니다: ${error.message ?: "알 수 없는 오류"}"
             }
         }
+        isHealthRefreshing = false
     }
 
     LaunchedEffect(todayWorkouts, routines.toList()) {
@@ -449,51 +453,62 @@ private fun RoutineScreen(
                     completions.any { it.routineId == routine.id && it.date == todayText }
                 }
                 val progress = if (todayRoutines.isEmpty()) 0f else completedToday.toFloat() / todayRoutines.size
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                PullToRefreshBox(
+                    isRefreshing = isHealthRefreshing,
+                    onRefresh = {
+                        if (hasHealthPermission) {
+                            isHealthRefreshing = true
+                            onRefreshHealth()
+                        }
+                    },
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "${todayDayLabel(todayDay)}요일 진행 상황",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (hasHealthPermission) {
-                                IconButton(onClick = onRefreshHealth) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "운동 데이터 새로고침")
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        "${todayDayLabel(todayDay)}요일 진행 상황",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                    Text(
+                                        "$completedToday / ${todayRoutines.size}개 완료",
+                                        style = MaterialTheme.typography.headlineSmall
+                                    )
+                                    LinearProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                    )
+                                    if (hasHealthPermission) {
+                                        Text(
+                                            if (todayWorkoutCount > 0) {
+                                                "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨"
+                                            } else {
+                                                "오늘 운동 데이터 없음 · 아래로 당겨 다시 확인"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
-                        Text("$completedToday / ${todayRoutines.size}개 완료", style = MaterialTheme.typography.headlineSmall)
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp)
-                        )
-                        if (hasHealthPermission) {
-                            Text(
-                                if (todayWorkoutCount > 0) {
-                                    "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨"
-                                } else {
-                                    "오늘 운동 데이터 없음 · 삼성 헬스 공유 상태를 확인해주세요"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                if (todayRoutines.isEmpty()) {
-                    Text("오늘 예정된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (todayRoutines.isEmpty()) {
+                            item {
+                                Text(
+                                    "오늘 예정된 루틴이 없습니다.",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        } else {
                         items(todayRoutines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
@@ -538,6 +553,7 @@ private fun RoutineScreen(
                                     }
                                 }
                             )
+                        }
                         }
                     }
                 }
