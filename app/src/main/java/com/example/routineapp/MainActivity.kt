@@ -381,7 +381,12 @@ private fun RoutineCard(
                 modifier = Modifier.padding(top = 6.dp)
             )
             Text(
-                if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨 · 탭해서 완료 취소" else "오늘 미완료 · 탭해서 완료 처리",
+                when {
+                    routine.lastCompletedDate == LocalDate.now().toString() && onCardClick != null -> "오늘 완료됨 · 탭해서 완료 취소"
+                    routine.lastCompletedDate == LocalDate.now().toString() -> "오늘 완료됨"
+                    onCardClick != null -> "오늘 미완료 · 탭해서 완료 처리"
+                    else -> "오늘 미완료"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                     MaterialTheme.colorScheme.primary
