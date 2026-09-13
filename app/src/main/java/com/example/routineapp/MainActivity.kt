@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -72,6 +74,8 @@ import com.example.routineapp.data.AppDatabase
 import com.example.routineapp.data.RoutineEntity
 import com.example.routineapp.data.RoutineCompletionEntity
 import com.example.routineapp.data.StrengthRecordEntity
+import com.example.routineapp.data.StrengthSetEntity
+import com.example.routineapp.data.CustomExerciseEntity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -98,9 +102,13 @@ private fun RoutineScreen(database: AppDatabase) {
     val dao = database.routineDao()
     val completionDao = database.routineCompletionDao()
     val strengthRecordDao = database.strengthRecordDao()
+    val strengthSetDao = database.strengthSetDao()
+    val customExerciseDao = database.customExerciseDao()
     val routines = remember { mutableStateListOf<RoutineEntity>() }
     val completions = remember { mutableStateListOf<RoutineCompletionEntity>() }
     val strengthRecords = remember { mutableStateListOf<StrengthRecordEntity>() }
+    val strengthSets = remember { mutableStateListOf<StrengthSetEntity>() }
+    val customExercises = remember { mutableStateListOf<CustomExerciseEntity>() }
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
@@ -148,6 +156,20 @@ private fun RoutineScreen(database: AppDatabase) {
         strengthRecordDao.observeAll().collect { savedRecords ->
             strengthRecords.clear()
             strengthRecords.addAll(savedRecords)
+        }
+    }
+
+    LaunchedEffect(strengthSetDao) {
+        strengthSetDao.observeAll().collect { savedSets ->
+            strengthSets.clear()
+            strengthSets.addAll(savedSets)
+        }
+    }
+
+    LaunchedEffect(customExerciseDao) {
+        customExerciseDao.observeAll().collect { savedExercises ->
+            customExercises.clear()
+            customExercises.addAll(savedExercises)
         }
     }
 
@@ -206,6 +228,12 @@ private fun RoutineScreen(database: AppDatabase) {
         }
     }
 
+    val achievementStreak = calculateAchievementStreak(
+        routines = routines.toList(),
+        completions = completions.toList(),
+        installedOn = installedOn
+    )
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -253,6 +281,32 @@ private fun RoutineScreen(database: AppDatabase) {
                     modifier = Modifier.size(48.dp)
                 )
                 Text("루티브", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 10.dp))
+                Spacer(Modifier.weight(1f))
+                if (achievementStreak > 0) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "${achievementStreak}일째",
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                }
             }
             if (selectedTab == 1) {
                 Text(
@@ -397,6 +451,7 @@ private fun RoutineScreen(database: AppDatabase) {
                                     focusedRoutineId = null
                                     scope.launch {
                                         completionDao.deleteForRoutine(routine.id)
+                                        strengthSetDao.deleteForRoutine(routine.id)
                                         strengthRecordDao.deleteForRoutine(routine.id)
                                         dao.delete(routine)
                                     }
@@ -447,6 +502,7 @@ private fun RoutineScreen(database: AppDatabase) {
                                 onDelete = {
                                     scope.launch {
                                         completionDao.deleteForRoutine(routine.id)
+                                        strengthSetDao.deleteForRoutine(routine.id)
                                         strengthRecordDao.deleteForRoutine(routine.id)
                                         dao.delete(routine)
                                     }
@@ -536,10 +592,31 @@ private fun RoutineScreen(database: AppDatabase) {
         StrengthRecordOverlay(
             routine = routine,
             records = strengthRecords,
+            strengthSets = strengthSets,
+            customExercises = customExercises,
             onDismiss = { recordingRoutine = null },
-            onAdd = { record -> scope.launch { strengthRecordDao.insert(record) } },
-            onUpdate = { record -> scope.launch { strengthRecordDao.update(record) } },
-            onDelete = { record -> scope.launch { strengthRecordDao.delete(record) } }
+            onAdd = { record, sets ->
+                scope.launch {
+                    val recordId = strengthRecordDao.insert(record)
+                    strengthSetDao.insertAll(sets.map { it.copy(recordId = recordId) })
+                }
+            },
+            onUpdate = { record, sets ->
+                scope.launch {
+                    strengthRecordDao.update(record)
+                    strengthSetDao.deleteForRecord(record.id)
+                    strengthSetDao.insertAll(sets.map { it.copy(id = 0, recordId = record.id) })
+                }
+            },
+            onDelete = { record ->
+                scope.launch {
+                    strengthSetDao.deleteForRecord(record.id)
+                    strengthRecordDao.delete(record)
+                }
+            },
+            onAddCustomExercise = { exercise ->
+                scope.launch { customExerciseDao.insert(exercise) }
+            }
         )
     }
 }
@@ -836,3 +913,24 @@ private fun appInstalledDate(context: Context): LocalDate = runCatching {
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
 }.getOrDefault(LocalDate.now())
+
+private fun calculateAchievementStreak(
+    routines: List<RoutineEntity>,
+    completions: List<RoutineCompletionEntity>,
+    installedOn: LocalDate
+): Int {
+    if (routines.isEmpty()) return 0
+    val completionKeys = completions.map { it.routineId to it.date }.toSet()
+    var date = LocalDate.now()
+    var streak = 0
+    while (!date.isBefore(installedOn)) {
+        val scheduled = routines.filter { date.dayOfWeek.name in it.activeDays.split(",") }
+        if (scheduled.isNotEmpty()) {
+            val allCompleted = scheduled.all { (it.id to date.toString()) in completionKeys }
+            if (!allCompleted) break
+            streak++
+        }
+        date = date.minusDays(1)
+    }
+    return streak
+}

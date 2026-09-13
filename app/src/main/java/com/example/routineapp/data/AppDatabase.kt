@@ -6,14 +6,22 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [RoutineEntity::class, RoutineCompletionEntity::class, StrengthRecordEntity::class],
-    version = 6,
+    entities = [
+        RoutineEntity::class,
+        RoutineCompletionEntity::class,
+        StrengthRecordEntity::class,
+        StrengthSetEntity::class,
+        CustomExerciseEntity::class
+    ],
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun routineDao(): RoutineDao
     abstract fun routineCompletionDao(): RoutineCompletionDao
     abstract fun strengthRecordDao(): StrengthRecordDao
+    abstract fun strengthSetDao(): StrengthSetDao
+    abstract fun customExerciseDao(): CustomExerciseDao
 
     companion object {
         @Volatile
@@ -30,7 +38,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_2_3,
                     MIGRATION_3_4,
                     MIGRATION_4_5,
-                    MIGRATION_5_6
+                    MIGRATION_5_6,
+                    MIGRATION_6_7
                 )
                     .build()
                     .also { instance = it }
@@ -104,6 +113,47 @@ abstract class AppDatabase : RoomDatabase() {
                         createdAt INTEGER NOT NULL
                     )
                     """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS strength_sets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        recordId INTEGER NOT NULL,
+                        setNumber INTEGER NOT NULL,
+                        weightKg REAL NOT NULL,
+                        reps INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    WITH RECURSIVE set_numbers(number) AS (
+                        SELECT 1
+                        UNION ALL
+                        SELECT number + 1 FROM set_numbers WHERE number < 100
+                    )
+                    INSERT INTO strength_sets (recordId, setNumber, weightKg, reps)
+                    SELECT records.id, set_numbers.number, records.weightKg, records.reps
+                    FROM strength_records AS records
+                    JOIN set_numbers ON set_numbers.number <= records.sets
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS custom_exercises (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        muscleGroup TEXT NOT NULL,
+                        name TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_custom_exercises_muscleGroup_name ON custom_exercises (muscleGroup, name)"
                 )
             }
         }

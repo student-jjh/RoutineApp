@@ -13,7 +13,7 @@ interface StrengthRecordDao {
     fun observeAll(): Flow<List<StrengthRecordEntity>>
 
     @Insert
-    suspend fun insert(record: StrengthRecordEntity)
+    suspend fun insert(record: StrengthRecordEntity): Long
 
     @Update
     suspend fun update(record: StrengthRecordEntity)
