@@ -28,6 +28,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -151,13 +158,13 @@ private fun RoutineScreen(database: AppDatabase) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    icon = { Text("오늘") },
+                    icon = { Icon(Icons.Default.Today, contentDescription = "오늘") },
                     label = { Text("오늘") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Text("설정") },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
                     label = { Text("루틴 설정") }
                 )
             }
@@ -437,8 +444,12 @@ private fun RoutineCard(
                     .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onEdit) { Text("수정") }
-                TextButton(onClick = onDelete) { Text("삭제") }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "루틴 수정")
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "루틴 삭제")
+                }
             }
         }
     }
