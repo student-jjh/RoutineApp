@@ -22,12 +22,18 @@ private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
     tertiary = Pink40,
-    background = Color(0xFFFFF7F1),
-    surface = Color(0xFFFFFCF9),
-    surfaceVariant = Color(0xFFFFE8DF),
+    primaryContainer = Color(0xFFD2E9D9),
+    onPrimaryContainer = Color(0xFF123C29),
+    secondaryContainer = Color(0xFFDDEADF),
+    onSecondaryContainer = Color(0xFF263B2D),
+    background = Color(0xFFF1F5F0),
+    surface = Color(0xFFFAFCF9),
+    surfaceVariant = Color(0xFFE2EBE3),
     onPrimary = Color.White,
-    onBackground = Color(0xFF302A2A),
-    onSurface = Color(0xFF302A2A)
+    onBackground = Color(0xFF1D2A21),
+    onSurface = Color(0xFF1D2A21),
+    onSurfaceVariant = Color(0xFF4B5C50),
+    outline = Color(0xFF718076)
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),

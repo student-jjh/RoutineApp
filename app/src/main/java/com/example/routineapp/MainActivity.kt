@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -67,11 +68,13 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import com.example.routineapp.ui.theme.RoutineAppTheme
 import com.example.routineapp.data.AppDatabase
 import com.example.routineapp.data.RoutineEntity
+import com.example.routineapp.data.RoutineCompletionEntity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Duration
 import java.time.DayOfWeek
+import java.time.YearMonth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,7 +92,9 @@ class MainActivity : ComponentActivity() {
 private fun RoutineScreen(database: AppDatabase) {
     val context = LocalContext.current
     val dao = database.routineDao()
+    val completionDao = database.routineCompletionDao()
     val routines = remember { mutableStateListOf<RoutineEntity>() }
+    val completions = remember { mutableStateListOf<RoutineCompletionEntity>() }
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
@@ -107,6 +112,8 @@ private fun RoutineScreen(database: AppDatabase) {
     var hasHealthPermission by remember { mutableStateOf(false) }
     var todayWorkoutCount by remember { mutableStateOf(0) }
     var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
+    var monthWorkoutCount by remember { mutableStateOf(0) }
+    var monthWorkoutMinutes by remember { mutableStateOf(0L) }
     var healthConnectMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -122,6 +129,13 @@ private fun RoutineScreen(database: AppDatabase) {
         }
     }
 
+    LaunchedEffect(completionDao) {
+        completionDao.observeAll().collect { savedCompletions ->
+            completions.clear()
+            completions.addAll(savedCompletions)
+        }
+    }
+
     LaunchedEffect(healthConnectClient) {
         if (healthConnectClient != null) {
             val granted = healthConnectClient.permissionController.getGrantedPermissions()
@@ -133,27 +147,46 @@ private fun RoutineScreen(database: AppDatabase) {
         if (healthConnectClient != null && hasHealthPermission) {
             val zone = ZoneId.systemDefault()
             val today = LocalDate.now(zone)
-            val start = today.atStartOfDay(zone).toInstant()
-            val end = today.plusDays(1).atStartOfDay(zone).toInstant()
-            todayWorkouts = healthConnectClient.readRecords(
+            val month = YearMonth.from(today)
+            val monthStart = month.atDay(1).atStartOfDay(zone).toInstant()
+            val monthEnd = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant()
+            val monthWorkouts = healthConnectClient.readRecords(
                 ReadRecordsRequest<ExerciseSessionRecord>(
                     recordType = ExerciseSessionRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                    timeRangeFilter = TimeRangeFilter.between(monthStart, monthEnd)
                 )
             ).records
+            val todayStart = today.atStartOfDay(zone).toInstant()
+            val tomorrowStart = today.plusDays(1).atStartOfDay(zone).toInstant()
+            todayWorkouts = monthWorkouts.filter {
+                it.startTime >= todayStart && it.startTime < tomorrowStart
+            }
             todayWorkoutCount = todayWorkouts.size
+            monthWorkoutCount = monthWorkouts.size
+            monthWorkoutMinutes = monthWorkouts.sumOf {
+                Duration.between(it.startTime, it.endTime).toMinutes().coerceAtLeast(0)
+            }
+        }
+    }
 
-            routines.toList().forEach { routine ->
-                val matched = todayWorkouts.any { workout ->
-                    val typeMatches = routine.category == "EXERCISE" &&
-                        (routine.exerciseType == "ANY" ||
-                            routine.exerciseType == exerciseTypeCode(workout.exerciseType))
-                    val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
-                    typeMatches && durationMinutes >= routine.minimumDurationMinutes
-                }
-                if (matched && routine.lastCompletedDate != today.toString()) {
-                    dao.update(routine.copy(lastCompletedDate = today.toString()))
-                }
+    LaunchedEffect(todayWorkouts, routines.toList()) {
+        val today = LocalDate.now().toString()
+        routines.toList().forEach { routine ->
+            val matched = todayWorkouts.any { workout ->
+                val typeMatches = routine.category == "EXERCISE" &&
+                    (routine.exerciseType == "ANY" ||
+                        routine.exerciseType == exerciseTypeCode(workout.exerciseType))
+                val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
+                typeMatches && durationMinutes >= routine.minimumDurationMinutes
+            }
+            if (matched && completions.none { it.routineId == routine.id && it.date == today }) {
+                completionDao.complete(
+                    RoutineCompletionEntity(
+                        routineId = routine.id,
+                        date = today,
+                        source = "HEALTH_CONNECT"
+                    )
+                )
             }
         }
     }
@@ -179,6 +212,15 @@ private fun RoutineScreen(database: AppDatabase) {
                     },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
                     label = { Text("루틴 설정") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = {
+                        selectedTab = 2
+                        focusedRoutineId = null
+                    },
+                    icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "기록") },
+                    label = { Text("기록") }
                 )
             }
         }
@@ -294,7 +336,10 @@ private fun RoutineScreen(database: AppDatabase) {
             val todayDay = DayOfWeek.from(java.time.LocalDate.now())
             val todayRoutines = routines.filter { it.activeDays.split(",").contains(todayDay.name) }
             if (selectedTab == 0) {
-                val completedToday = todayRoutines.count { it.lastCompletedDate == LocalDate.now().toString() }
+                val todayText = LocalDate.now().toString()
+                val completedToday = todayRoutines.count { routine ->
+                    completions.any { it.routineId == routine.id && it.date == todayText }
+                }
                 val progress = if (todayRoutines.isEmpty()) 0f else completedToday.toFloat() / todayRoutines.size
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -326,31 +371,43 @@ private fun RoutineScreen(database: AppDatabase) {
                         items(todayRoutines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
+                                isCompleted = completions.any {
+                                    it.routineId == routine.id && it.date == todayText
+                                },
                                 onEdit = {
                                     focusedRoutineId = null
                                     editingRoutine = routine
                                 },
                                 onDelete = {
                                     focusedRoutineId = null
-                                    scope.launch { dao.delete(routine) }
+                                    scope.launch {
+                                        completionDao.deleteForRoutine(routine.id)
+                                        dao.delete(routine)
+                                    }
                                 },
                                 compact = true,
                                 showActions = focusedRoutineId == routine.id,
                                 onLongClick = { focusedRoutineId = routine.id },
                                 onCardClick = {
                                     focusedRoutineId = null
-                                    val completedDate = if (routine.lastCompletedDate == LocalDate.now().toString()) {
-                                        null
-                                    } else {
-                                        LocalDate.now().toString()
+                                    scope.launch {
+                                        val completed = completions.any {
+                                            it.routineId == routine.id && it.date == todayText
+                                        }
+                                        if (completed) {
+                                            completionDao.uncomplete(routine.id, todayText)
+                                        } else {
+                                            completionDao.complete(
+                                                RoutineCompletionEntity(routine.id, todayText)
+                                            )
+                                        }
                                     }
-                                    scope.launch { dao.update(routine.copy(lastCompletedDate = completedDate)) }
                                 }
                             )
                         }
                     }
                 }
-            } else {
+            } else if (selectedTab == 1) {
                 Text("설정된 루틴", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(10.dp))
                 if (routines.isEmpty()) {
@@ -360,11 +417,17 @@ private fun RoutineScreen(database: AppDatabase) {
                         items(routines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
+                                isCompleted = false,
                                 onEdit = {
                                     focusedRoutineId = null
                                     editingRoutine = routine
                                 },
-                                onDelete = { scope.launch { dao.delete(routine) } },
+                                onDelete = {
+                                    scope.launch {
+                                        completionDao.deleteForRoutine(routine.id)
+                                        dao.delete(routine)
+                                    }
+                                },
                                 showCompletionStatus = false,
                                 onCardClick = {
                                     focusedRoutineId = null
@@ -374,6 +437,14 @@ private fun RoutineScreen(database: AppDatabase) {
                         }
                     }
                 }
+            } else {
+                CalendarDashboard(
+                    routines = routines,
+                    completions = completions,
+                    monthWorkoutCount = monthWorkoutCount,
+                    monthWorkoutMinutes = monthWorkoutMinutes,
+                    hasHealthPermission = hasHealthPermission
+                )
             }
         }
     }
@@ -436,6 +507,7 @@ private fun RoutineScreen(database: AppDatabase) {
 @Composable
 private fun RoutineCard(
     routine: RoutineEntity,
+    isCompleted: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onCardClick: (() -> Unit)? = null,
@@ -465,13 +537,13 @@ private fun RoutineCard(
             ) {
                 Text(routine.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 if (showCompletionStatus) Icon(
-                    imageVector = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                    imageVector = if (isCompleted) {
                         Icons.Default.CheckCircle
                     } else {
                         Icons.Default.RadioButtonUnchecked
                     },
-                    contentDescription = if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨" else "오늘 미완료",
-                    tint = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                    contentDescription = if (isCompleted) "오늘 완료됨" else "오늘 미완료",
+                    tint = if (isCompleted) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
