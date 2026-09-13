@@ -34,6 +34,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.MaterialTheme
@@ -432,20 +434,23 @@ private fun RoutineCard(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            Text(
-                when {
-                    routine.lastCompletedDate == LocalDate.now().toString() && onCardClick != null -> "오늘 완료됨 · 탭해서 완료 취소"
-                    routine.lastCompletedDate == LocalDate.now().toString() -> "오늘 완료됨"
-                    onCardClick != null -> "오늘 미완료 · 탭해서 완료 처리"
-                    else -> "오늘 미완료"
+            Icon(
+                imageVector = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                    Icons.Default.CheckCircle
+                } else {
+                    Icons.Default.RadioButtonUnchecked
                 },
-                style = MaterialTheme.typography.labelMedium,
-                color = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                contentDescription = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                    "오늘 완료됨"
+                } else {
+                    "오늘 미완료"
+                },
+                tint = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 6.dp)
             )
             Row(
                 modifier = Modifier
