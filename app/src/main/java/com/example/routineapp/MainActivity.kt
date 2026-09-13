@@ -73,7 +73,7 @@ private fun RoutineScreen(database: AppDatabase) {
     val healthConnectClient = remember(context, healthConnectAvailable) {
         if (healthConnectAvailable) HealthConnectClient.getOrCreate(context) else null
     }
-    val healthPermissions = remember {
+    val healthPermissions: Set<String> = remember {
         setOf(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
     }
     var hasHealthPermission by remember { mutableStateOf(false) }
@@ -106,7 +106,7 @@ private fun RoutineScreen(database: AppDatabase) {
             val start = today.atStartOfDay(zone).toInstant()
             val end = today.plusDays(1).atStartOfDay(zone).toInstant()
             todayWorkoutCount = healthConnectClient.readRecords(
-                ReadRecordsRequest(
+                ReadRecordsRequest<ExerciseSessionRecord>(
                     recordType = ExerciseSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(start, end)
                 )
