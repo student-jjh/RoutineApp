@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -265,8 +266,13 @@ private fun RoutineScreen(database: AppDatabase) {
                                 routine = routine,
                                 onEdit = { editingRoutine = routine },
                                 onDelete = { scope.launch { dao.delete(routine) } },
-                                onManualComplete = {
-                                    scope.launch { dao.update(routine.copy(lastCompletedDate = LocalDate.now().toString())) }
+                                onCardClick = {
+                                    val completedDate = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                                        null
+                                    } else {
+                                        LocalDate.now().toString()
+                                    }
+                                    scope.launch { dao.update(routine.copy(lastCompletedDate = completedDate)) }
                                 }
                             )
                         }
@@ -351,9 +357,13 @@ private fun RoutineCard(
     routine: RoutineEntity,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onManualComplete: (() -> Unit)? = null
+    onCardClick: (() -> Unit)? = null
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(routine.name, style = MaterialTheme.typography.titleMedium)
             if (routine.description.isNotBlank()) {
@@ -371,7 +381,7 @@ private fun RoutineCard(
                 modifier = Modifier.padding(top = 6.dp)
             )
             Text(
-                if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨" else "오늘 미완료",
+                if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨 · 탭해서 완료 취소" else "오늘 미완료 · 탭해서 완료 처리",
                 style = MaterialTheme.typography.labelMedium,
                 color = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                     MaterialTheme.colorScheme.primary
@@ -387,11 +397,6 @@ private fun RoutineCard(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onEdit) { Text("수정") }
-                onManualComplete?.let {
-                    TextButton(onClick = it) {
-                        Text(if (routine.lastCompletedDate == LocalDate.now().toString()) "완료됨" else "완료 처리")
-                    }
-                }
                 TextButton(onClick = onDelete) { Text("삭제") }
             }
         }
@@ -503,13 +508,20 @@ private fun RoutineDialog(
                         Row(modifier = Modifier.fillMaxWidth()) {
                             days.forEach { day ->
                                 val selected = day.name in activeDays
-                                TextButton(
-                                    onClick = {
-                                        activeDays = if (selected) activeDays - day.name else activeDays + day.name
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(todayDayLabel(day))
+                                if (selected) {
+                                    Button(
+                                        onClick = {
+                                            activeDays = activeDays - day.name
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text(todayDayLabel(day)) }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            activeDays = activeDays + day.name
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text(todayDayLabel(day)) }
                                 }
                             }
                             repeat(4 - days.size) { Spacer(Modifier.weight(1f)) }
