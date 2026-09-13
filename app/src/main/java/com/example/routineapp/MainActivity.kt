@@ -33,7 +33,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -484,7 +483,7 @@ private fun RoutineScreen(database: AppDatabase) {
         RoutineDialog(
             title = "루틴 추가",
             onDismiss = { isAdding = false },
-            onSave = { name, description, category, exerciseType, minimumDuration, muscleGroup, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
                 scope.launch {
                     dao.insert(
                         RoutineEntity(
@@ -493,8 +492,7 @@ private fun RoutineScreen(database: AppDatabase) {
                             category = category,
                             activeDays = activeDays,
                             exerciseType = exerciseType,
-                            minimumDurationMinutes = minimumDuration,
-                            muscleGroup = muscleGroup
+                            minimumDurationMinutes = minimumDuration
                         )
                     )
                 }
@@ -512,9 +510,8 @@ private fun RoutineScreen(database: AppDatabase) {
             initialActiveDays = routine.activeDays,
             initialExerciseType = routine.exerciseType,
             initialMinimumDuration = routine.minimumDurationMinutes,
-            initialMuscleGroup = routine.muscleGroup,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description, category, exerciseType, minimumDuration, muscleGroup, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
@@ -525,8 +522,7 @@ private fun RoutineScreen(database: AppDatabase) {
                                 category = category,
                                 activeDays = activeDays,
                                 exerciseType = exerciseType,
-                                minimumDurationMinutes = minimumDuration,
-                                muscleGroup = muscleGroup
+                                minimumDurationMinutes = minimumDuration
                             )
                         )
                     }
@@ -574,7 +570,14 @@ private fun RoutineCard(
                 } else {
                     Modifier
                 }
-            )
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (showCompletionStatus && isCompleted) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        )
     ) {
         Column(modifier = Modifier.padding(if (compact) 12.dp else 16.dp)) {
             Row(
@@ -582,6 +585,15 @@ private fun RoutineCard(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 Text(routine.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (onRecord != null) {
+                    IconButton(onClick = onRecord) {
+                        Icon(
+                            Icons.Default.EditNote,
+                            contentDescription = "근력 운동 기록",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 if (showCompletionStatus) Icon(
                     imageVector = if (isCompleted) {
                         Icons.Default.CheckCircle
@@ -606,25 +618,11 @@ private fun RoutineCard(
             }
             Text(
                 "${categoryLabel(routine.category)}" + if (routine.category == "EXERCISE") {
-                    " · ${exerciseTypeLabel(routine.exerciseType)}" +
-                        if (routine.exerciseType == "STRENGTH_TRAINING") {
-                            " · ${muscleGroupLabel(routine.muscleGroup)}"
-                        } else {
-                            " · ${routine.minimumDurationMinutes}분 이상"
-                        }
+                    " · ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
                 } else "",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            if (onRecord != null) {
-                FilledTonalButton(
-                    onClick = onRecord,
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Icon(Icons.Default.EditNote, contentDescription = null)
-                    Text("기록", modifier = Modifier.padding(start = 4.dp))
-                }
-            }
             if (showActions) Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -651,9 +649,8 @@ private fun RoutineDialog(
     initialActiveDays: String = ALL_DAYS,
     initialExerciseType: String = "ANY",
     initialMinimumDuration: Int = 0,
-    initialMuscleGroup: String = "FULL_BODY",
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Int, String, String) -> Unit
+    onSave: (String, String, String, String, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
@@ -663,8 +660,6 @@ private fun RoutineDialog(
     var exerciseType by remember { mutableStateOf(initialExerciseType) }
     var exerciseTypeExpanded by remember { mutableStateOf(false) }
     var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
-    var muscleGroup by remember { mutableStateOf(initialMuscleGroup) }
-    var muscleGroupExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -730,35 +725,6 @@ private fun RoutineDialog(
                         label = { Text("최소 운동 시간(분)") },
                         singleLine = true
                     )
-                    if (exerciseType == "STRENGTH_TRAINING") {
-                        Box {
-                            OutlinedButton(onClick = { muscleGroupExpanded = true }) {
-                                Text("운동 부위: ${muscleGroupLabel(muscleGroup)}")
-                            }
-                            DropdownMenu(
-                                expanded = muscleGroupExpanded,
-                                onDismissRequest = { muscleGroupExpanded = false }
-                            ) {
-                                listOf(
-                                    "BACK",
-                                    "LEGS",
-                                    "SHOULDERS",
-                                    "CHEST",
-                                    "ARMS",
-                                    "CORE",
-                                    "FULL_BODY"
-                                ).forEach { option ->
-                                    DropdownMenuItem(
-                                        text = { Text(muscleGroupLabel(option)) },
-                                        onClick = {
-                                            muscleGroup = option
-                                            muscleGroupExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
                 Text("적용 요일", style = MaterialTheme.typography.labelLarge)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -810,7 +776,6 @@ private fun RoutineDialog(
                         category,
                         exerciseType.trim().ifBlank { "ANY" },
                         minimumDuration.toIntOrNull() ?: 0,
-                        muscleGroup,
                         activeDays.sorted().joinToString(",")
                     )
                 },
