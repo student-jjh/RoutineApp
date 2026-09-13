@@ -22,9 +22,9 @@ private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
     tertiary = Pink40,
-    background = Color(0xFFFFFBF7),
-    surface = Color(0xFFFFFBF7),
-    surfaceVariant = Color(0xFFFFEDE7),
+    background = Color(0xFFFFF7F1),
+    surface = Color(0xFFFFFCF9),
+    surfaceVariant = Color(0xFFFFE8DF),
     onPrimary = Color.White,
     onBackground = Color(0xFF302A2A),
     onSurface = Color(0xFF302A2A)
@@ -44,7 +44,7 @@ private val LightColorScheme = lightColorScheme(
 fun RoutineAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

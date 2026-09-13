@@ -419,7 +419,26 @@ private fun RoutineCard(
             .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(routine.name, style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+            ) {
+                Text(routine.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                        Icons.Default.CheckCircle
+                    } else {
+                        Icons.Default.RadioButtonUnchecked
+                    },
+                    contentDescription = if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨" else "오늘 미완료",
+                    tint = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(32.dp)
+                )
+            }
             if (routine.description.isNotBlank()) {
                 Text(
                     routine.description,
@@ -432,24 +451,6 @@ private fun RoutineCard(
                     " · ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
                 } else "",
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-            Icon(
-                imageVector = if (routine.lastCompletedDate == LocalDate.now().toString()) {
-                    Icons.Default.CheckCircle
-                } else {
-                    Icons.Default.RadioButtonUnchecked
-                },
-                contentDescription = if (routine.lastCompletedDate == LocalDate.now().toString()) {
-                    "오늘 완료됨"
-                } else {
-                    "오늘 미완료"
-                },
-                tint = if (routine.lastCompletedDate == LocalDate.now().toString()) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
                 modifier = Modifier.padding(top = 6.dp)
             )
             Row(
