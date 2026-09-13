@@ -12,5 +12,6 @@ data class RoutineEntity(
     val activeDays: String = "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY",
     val exerciseType: String = "ANY",
     val minimumDurationMinutes: Int = 0,
+    val muscleGroup: String = "FULL_BODY",
     val lastCompletedDate: String? = null
 )

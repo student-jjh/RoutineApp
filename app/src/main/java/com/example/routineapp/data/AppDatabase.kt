@@ -6,13 +6,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [RoutineEntity::class, RoutineCompletionEntity::class],
-    version = 5,
+    entities = [RoutineEntity::class, RoutineCompletionEntity::class, StrengthRecordEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun routineDao(): RoutineDao
     abstract fun routineCompletionDao(): RoutineCompletionDao
+    abstract fun strengthRecordDao(): StrengthRecordDao
 
     companion object {
         @Volatile
@@ -24,7 +25,13 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "routine_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                ).addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6
+                )
                     .build()
                     .also { instance = it }
             }
@@ -72,6 +79,30 @@ abstract class AppDatabase : RoomDatabase() {
                     SELECT id, lastCompletedDate, 'LEGACY', 0
                     FROM routines
                     WHERE lastCompletedDate IS NOT NULL
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE routines ADD COLUMN muscleGroup TEXT NOT NULL DEFAULT 'FULL_BODY'"
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS strength_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        routineId INTEGER NOT NULL,
+                        performedDate TEXT NOT NULL,
+                        muscleGroup TEXT NOT NULL,
+                        exerciseName TEXT NOT NULL,
+                        weightKg REAL NOT NULL,
+                        reps INTEGER NOT NULL,
+                        sets INTEGER NOT NULL,
+                        note TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
                     """.trimIndent()
                 )
             }

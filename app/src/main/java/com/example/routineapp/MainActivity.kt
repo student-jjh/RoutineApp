@@ -1,6 +1,7 @@
 package com.example.routineapp
 
 import android.content.Intent
+import android.content.Context
 import android.os.Bundle
 import android.net.Uri
 import androidx.activity.ComponentActivity
@@ -32,6 +33,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -40,6 +42,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -69,12 +72,14 @@ import com.example.routineapp.ui.theme.RoutineAppTheme
 import com.example.routineapp.data.AppDatabase
 import com.example.routineapp.data.RoutineEntity
 import com.example.routineapp.data.RoutineCompletionEntity
+import com.example.routineapp.data.StrengthRecordEntity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Duration
 import java.time.DayOfWeek
 import java.time.YearMonth
+import java.time.Instant
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,13 +98,17 @@ private fun RoutineScreen(database: AppDatabase) {
     val context = LocalContext.current
     val dao = database.routineDao()
     val completionDao = database.routineCompletionDao()
+    val strengthRecordDao = database.strengthRecordDao()
     val routines = remember { mutableStateListOf<RoutineEntity>() }
     val completions = remember { mutableStateListOf<RoutineCompletionEntity>() }
+    val strengthRecords = remember { mutableStateListOf<StrengthRecordEntity>() }
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
     var focusedRoutineId by remember { mutableStateOf<Long?>(null) }
+    var recordingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
+    val installedOn = remember(context) { appInstalledDate(context) }
     val providerPackageName = "com.google.android.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
@@ -133,6 +142,13 @@ private fun RoutineScreen(database: AppDatabase) {
         completionDao.observeAll().collect { savedCompletions ->
             completions.clear()
             completions.addAll(savedCompletions)
+        }
+    }
+
+    LaunchedEffect(strengthRecordDao) {
+        strengthRecordDao.observeAll().collect { savedRecords ->
+            strengthRecords.clear()
+            strengthRecords.addAll(savedRecords)
         }
     }
 
@@ -382,9 +398,16 @@ private fun RoutineScreen(database: AppDatabase) {
                                     focusedRoutineId = null
                                     scope.launch {
                                         completionDao.deleteForRoutine(routine.id)
+                                        strengthRecordDao.deleteForRoutine(routine.id)
                                         dao.delete(routine)
                                     }
                                 },
+                                onRecord = if (
+                                    routine.category == "EXERCISE" &&
+                                    routine.exerciseType == "STRENGTH_TRAINING"
+                                ) {
+                                    { recordingRoutine = routine }
+                                } else null,
                                 compact = true,
                                 showActions = focusedRoutineId == routine.id,
                                 onLongClick = { focusedRoutineId = routine.id },
@@ -425,9 +448,16 @@ private fun RoutineScreen(database: AppDatabase) {
                                 onDelete = {
                                     scope.launch {
                                         completionDao.deleteForRoutine(routine.id)
+                                        strengthRecordDao.deleteForRoutine(routine.id)
                                         dao.delete(routine)
                                     }
                                 },
+                                onRecord = if (
+                                    routine.category == "EXERCISE" &&
+                                    routine.exerciseType == "STRENGTH_TRAINING"
+                                ) {
+                                    { recordingRoutine = routine }
+                                } else null,
                                 showCompletionStatus = false,
                                 onCardClick = {
                                     focusedRoutineId = null
@@ -443,7 +473,8 @@ private fun RoutineScreen(database: AppDatabase) {
                     completions = completions,
                     monthWorkoutCount = monthWorkoutCount,
                     monthWorkoutMinutes = monthWorkoutMinutes,
-                    hasHealthPermission = hasHealthPermission
+                    hasHealthPermission = hasHealthPermission,
+                    installedOn = installedOn
                 )
             }
         }
@@ -453,7 +484,7 @@ private fun RoutineScreen(database: AppDatabase) {
         RoutineDialog(
             title = "루틴 추가",
             onDismiss = { isAdding = false },
-            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, muscleGroup, activeDays ->
                 scope.launch {
                     dao.insert(
                         RoutineEntity(
@@ -462,7 +493,8 @@ private fun RoutineScreen(database: AppDatabase) {
                             category = category,
                             activeDays = activeDays,
                             exerciseType = exerciseType,
-                            minimumDurationMinutes = minimumDuration
+                            minimumDurationMinutes = minimumDuration,
+                            muscleGroup = muscleGroup
                         )
                     )
                 }
@@ -480,8 +512,9 @@ private fun RoutineScreen(database: AppDatabase) {
             initialActiveDays = routine.activeDays,
             initialExerciseType = routine.exerciseType,
             initialMinimumDuration = routine.minimumDurationMinutes,
+            initialMuscleGroup = routine.muscleGroup,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, muscleGroup, activeDays ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
@@ -492,13 +525,25 @@ private fun RoutineScreen(database: AppDatabase) {
                                 category = category,
                                 activeDays = activeDays,
                                 exerciseType = exerciseType,
-                                minimumDurationMinutes = minimumDuration
+                                minimumDurationMinutes = minimumDuration,
+                                muscleGroup = muscleGroup
                             )
                         )
                     }
                 }
                 editingRoutine = null
             }
+        )
+    }
+
+    recordingRoutine?.let { routine ->
+        StrengthRecordOverlay(
+            routine = routine,
+            records = strengthRecords,
+            onDismiss = { recordingRoutine = null },
+            onAdd = { record -> scope.launch { strengthRecordDao.insert(record) } },
+            onUpdate = { record -> scope.launch { strengthRecordDao.update(record) } },
+            onDelete = { record -> scope.launch { strengthRecordDao.delete(record) } }
         )
     }
 }
@@ -510,6 +555,7 @@ private fun RoutineCard(
     isCompleted: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRecord: (() -> Unit)? = null,
     onCardClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     showCompletionStatus: Boolean = true,
@@ -560,11 +606,25 @@ private fun RoutineCard(
             }
             Text(
                 "${categoryLabel(routine.category)}" + if (routine.category == "EXERCISE") {
-                    " · ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
+                    " · ${exerciseTypeLabel(routine.exerciseType)}" +
+                        if (routine.exerciseType == "STRENGTH_TRAINING") {
+                            " · ${muscleGroupLabel(routine.muscleGroup)}"
+                        } else {
+                            " · ${routine.minimumDurationMinutes}분 이상"
+                        }
                 } else "",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
+            if (onRecord != null) {
+                FilledTonalButton(
+                    onClick = onRecord,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Icon(Icons.Default.EditNote, contentDescription = null)
+                    Text("기록", modifier = Modifier.padding(start = 4.dp))
+                }
+            }
             if (showActions) Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -591,8 +651,9 @@ private fun RoutineDialog(
     initialActiveDays: String = ALL_DAYS,
     initialExerciseType: String = "ANY",
     initialMinimumDuration: Int = 0,
+    initialMuscleGroup: String = "FULL_BODY",
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Int, String) -> Unit
+    onSave: (String, String, String, String, Int, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
@@ -602,6 +663,8 @@ private fun RoutineDialog(
     var exerciseType by remember { mutableStateOf(initialExerciseType) }
     var exerciseTypeExpanded by remember { mutableStateOf(false) }
     var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
+    var muscleGroup by remember { mutableStateOf(initialMuscleGroup) }
+    var muscleGroupExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -667,6 +730,35 @@ private fun RoutineDialog(
                         label = { Text("최소 운동 시간(분)") },
                         singleLine = true
                     )
+                    if (exerciseType == "STRENGTH_TRAINING") {
+                        Box {
+                            OutlinedButton(onClick = { muscleGroupExpanded = true }) {
+                                Text("운동 부위: ${muscleGroupLabel(muscleGroup)}")
+                            }
+                            DropdownMenu(
+                                expanded = muscleGroupExpanded,
+                                onDismissRequest = { muscleGroupExpanded = false }
+                            ) {
+                                listOf(
+                                    "BACK",
+                                    "LEGS",
+                                    "SHOULDERS",
+                                    "CHEST",
+                                    "ARMS",
+                                    "CORE",
+                                    "FULL_BODY"
+                                ).forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(muscleGroupLabel(option)) },
+                                        onClick = {
+                                            muscleGroup = option
+                                            muscleGroupExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Text("적용 요일", style = MaterialTheme.typography.labelLarge)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -718,6 +810,7 @@ private fun RoutineDialog(
                         category,
                         exerciseType.trim().ifBlank { "ANY" },
                         minimumDuration.toIntOrNull() ?: 0,
+                        muscleGroup,
                         activeDays.sorted().joinToString(",")
                     )
                 },
@@ -770,3 +863,11 @@ private fun todayDayLabel(day: DayOfWeek): String = when (day) {
     DayOfWeek.SATURDAY -> "토"
     DayOfWeek.SUNDAY -> "일"
 }
+
+@Suppress("DEPRECATION")
+private fun appInstalledDate(context: Context): LocalDate = runCatching {
+    val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+    Instant.ofEpochMilli(packageInfo.firstInstallTime)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate()
+}.getOrDefault(LocalDate.now())

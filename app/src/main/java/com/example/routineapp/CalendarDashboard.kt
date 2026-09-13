@@ -49,16 +49,22 @@ fun CalendarDashboard(
     completions: List<RoutineCompletionEntity>,
     monthWorkoutCount: Int,
     monthWorkoutMinutes: Long,
-    hasHealthPermission: Boolean
+    hasHealthPermission: Boolean,
+    installedOn: LocalDate
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     val today = LocalDate.now()
     val monthEnd = selectedMonth.atEndOfMonth()
     val periodEnd = if (selectedMonth == YearMonth.from(today)) today else monthEnd
+    val trackingStart = maxOf(selectedMonth.atDay(1), installedOn)
     val routineRates = routines.map { routine ->
-        val scheduledDates = (1..periodEnd.dayOfMonth)
-            .map(selectedMonth::atDay)
-            .filter { it.dayOfWeek.name in routine.activeDays.split(",") }
+        val scheduledDates = if (trackingStart <= periodEnd) {
+            generateSequence(trackingStart) { date ->
+                date.plusDays(1).takeIf { it <= periodEnd }
+            }.filter { it.dayOfWeek.name in routine.activeDays.split(",") }.toList()
+        } else {
+            emptyList()
+        }
         val completedDates = completions.asSequence()
             .filter { it.routineId == routine.id }
             .map { it.date }
@@ -100,7 +106,8 @@ fun CalendarDashboard(
                 month = selectedMonth,
                 routines = routines,
                 completions = completions,
-                today = today
+                today = today,
+                installedOn = installedOn
             )
         }
 
@@ -201,7 +208,8 @@ private fun MonthCalendar(
     month: YearMonth,
     routines: List<RoutineEntity>,
     completions: List<RoutineCompletionEntity>,
-    today: LocalDate
+    today: LocalDate,
+    installedOn: LocalDate
 ) {
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
     val cells = List<LocalDate?>(firstOffset) { null } +
@@ -239,9 +247,10 @@ private fun MonthCalendar(
                             }
                             val rate = if (scheduled.isEmpty()) 0 else completed * 100 / scheduled.size
                             val isFuture = date > today
+                            val isBeforeInstall = date < installedOn
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isFuture) {
+                                color = if (isFuture || isBeforeInstall) {
                                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                 } else {
                                     achievementColor(rate)
@@ -258,9 +267,13 @@ private fun MonthCalendar(
                                     Text(
                                         date.dayOfMonth.toString(),
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = if (!isFuture && rate >= 75) Color.White else MaterialTheme.colorScheme.onSurface
+                                        color = if (!isFuture && !isBeforeInstall && rate >= 75) {
+                                            Color.White
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        }
                                     )
-                                    if (!isFuture && scheduled.isNotEmpty()) {
+                                    if (!isFuture && !isBeforeInstall && scheduled.isNotEmpty()) {
                                         Text(
                                             "$rate%",
                                             style = MaterialTheme.typography.labelSmall,
