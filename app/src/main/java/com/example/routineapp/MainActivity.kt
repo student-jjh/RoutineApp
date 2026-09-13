@@ -3,6 +3,7 @@ package com.example.routineapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,11 +33,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import com.example.routineapp.ui.theme.RoutineAppTheme
 import com.example.routineapp.data.AppDatabase
 import com.example.routineapp.data.RoutineEntity
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,16 +62,55 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun RoutineScreen(database: AppDatabase) {
+    val context = LocalContext.current
     val dao = database.routineDao()
     val routines = remember { mutableStateListOf<RoutineEntity>() }
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
+    val healthConnectStatus = HealthConnectClient.getSdkStatus(context)
+    val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
+    val healthConnectClient = remember(context, healthConnectAvailable) {
+        if (healthConnectAvailable) HealthConnectClient.getOrCreate(context) else null
+    }
+    val healthPermissions = remember {
+        setOf(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
+    }
+    var hasHealthPermission by remember { mutableStateOf(false) }
+    var todayWorkoutCount by remember { mutableStateOf(0) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = PermissionController.createRequestPermissionResultContract()
+    ) { grantedPermissions ->
+        hasHealthPermission = grantedPermissions.containsAll(healthPermissions)
+    }
 
     LaunchedEffect(dao) {
         dao.observeAll().collect { savedRoutines ->
             routines.clear()
             routines.addAll(savedRoutines)
+        }
+    }
+
+    LaunchedEffect(healthConnectClient) {
+        if (healthConnectClient != null) {
+            val granted = healthConnectClient.permissionController.getGrantedPermissions()
+            hasHealthPermission = granted.containsAll(healthPermissions)
+        }
+    }
+
+    LaunchedEffect(healthConnectClient, hasHealthPermission) {
+        if (healthConnectClient != null && hasHealthPermission) {
+            val zone = ZoneId.systemDefault()
+            val today = LocalDate.now(zone)
+            val start = today.atStartOfDay(zone).toInstant()
+            val end = today.plusDays(1).atStartOfDay(zone).toInstant()
+            todayWorkoutCount = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = ExerciseSessionRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(start, end)
+                )
+            ).records.size
         }
     }
 
@@ -82,6 +131,36 @@ private fun RoutineScreen(database: AppDatabase) {
             Button(onClick = { isAdding = true }, modifier = Modifier.fillMaxWidth()) {
                 Text("루틴 추가")
             }
+
+            Spacer(Modifier.height(10.dp))
+
+            if (!healthConnectAvailable) {
+                Text(
+                    "Health Connect를 사용할 수 없는 기기입니다.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        if (healthConnectClient != null) {
+                            permissionLauncher.launch(healthPermissions)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (hasHealthPermission) "Health Connect 연결됨" else "운동 데이터 연결")
+                }
+                Text(
+                    if (hasHealthPermission) {
+                        "오늘 운동 세션: ${todayWorkoutCount}개"
+                    } else {
+                        "운동 자동 체크를 위해 권한을 허용해주세요."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
             Spacer(Modifier.height(16.dp))
 
             if (routines.isEmpty()) {
