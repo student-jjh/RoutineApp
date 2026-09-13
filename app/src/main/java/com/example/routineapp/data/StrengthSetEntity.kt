@@ -8,6 +8,6 @@ data class StrengthSetEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val recordId: Long,
     val setNumber: Int,
-    val weightKg: Double,
+    val weightKg: Double?,
     val reps: Int
 )

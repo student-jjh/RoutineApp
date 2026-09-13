@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         StrengthSetEntity::class,
         CustomExerciseEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,7 +39,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_3_4,
                     MIGRATION_4_5,
                     MIGRATION_5_6,
-                    MIGRATION_6_7
+                    MIGRATION_6_7,
+                    MIGRATION_7_8
                 )
                     .build()
                     .also { instance = it }
@@ -155,6 +156,30 @@ abstract class AppDatabase : RoomDatabase() {
                 database.execSQL(
                     "CREATE UNIQUE INDEX IF NOT EXISTS index_custom_exercises_muscleGroup_name ON custom_exercises (muscleGroup, name)"
                 )
+            }
+        }
+
+        private val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE strength_sets_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        recordId INTEGER NOT NULL,
+                        setNumber INTEGER NOT NULL,
+                        weightKg REAL,
+                        reps INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    INSERT INTO strength_sets_new (id, recordId, setNumber, weightKg, reps)
+                    SELECT id, recordId, setNumber, weightKg, reps FROM strength_sets
+                    """.trimIndent()
+                )
+                database.execSQL("DROP TABLE strength_sets")
+                database.execSQL("ALTER TABLE strength_sets_new RENAME TO strength_sets")
             }
         }
     }

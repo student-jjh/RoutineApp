@@ -31,6 +31,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -69,14 +70,23 @@ fun StrengthRecordOverlay(
 ) {
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<StrengthRecordEntity?>(null) }
-    var selectedGroup by remember { mutableStateOf("ALL") }
+    var viewMode by remember { mutableStateOf("TODAY") }
+    var selectedGroup by remember { mutableStateOf("BACK") }
+    var selectedExercise by remember { mutableStateOf("") }
     val routineRecords = records.filter { it.routineId == routine.id }
     val recordIds = routineRecords.map { it.id }.toSet()
     val routineSets = strengthSets.filter { it.recordId in recordIds }
-    val visibleRecords = if (selectedGroup == "ALL") routineRecords
-        else routineRecords.filter { it.muscleGroup == selectedGroup }
-    val totalVolume = routineSets.sumOf { it.weightKg * it.reps }
-    val workoutDays = routineRecords.map { it.performedDate }.distinct().size
+    val exerciseNames = routineRecords.map { it.exerciseName }.distinct().sorted()
+    val activeExercise = selectedExercise.takeIf { it in exerciseNames } ?: exerciseNames.firstOrNull().orEmpty()
+    val todayText = LocalDate.now().toString()
+    val visibleRecords = when (viewMode) {
+        "GROUP" -> routineRecords.filter { it.muscleGroup == selectedGroup }
+        "EXERCISE" -> routineRecords.filter { it.exerciseName == activeExercise }
+        else -> routineRecords.filter { it.performedDate == todayText }
+    }
+    val todayRecords = routineRecords.filter { it.performedDate == todayText }
+    val todayRecordIds = todayRecords.map { it.id }.toSet()
+    val todaySetCount = routineSets.count { it.recordId in todayRecordIds }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -101,23 +111,62 @@ fun StrengthRecordOverlay(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    StrengthSummaryCard("운동 일수", "${workoutDays}일", Modifier.weight(1f))
-                    StrengthSummaryCard("누적 볼륨", "${formatVolume(totalVolume)}kg", Modifier.weight(1f))
+                    StrengthSummaryCard("오늘 운동", "${todayRecords.size}종목", Modifier.weight(1f))
+                    StrengthSummaryCard("오늘 세트", "${todaySetCount}세트", Modifier.weight(1f))
                 }
                 LazyRow(
                     modifier = Modifier.padding(top = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(listOf("ALL") + MUSCLE_GROUPS, key = { it }) { group ->
+                    items(listOf("TODAY", "EXERCISE", "GROUP"), key = { it }) { mode ->
                         FilterChip(
-                            selected = selectedGroup == group,
-                            onClick = { selectedGroup = group },
-                            label = { Text(if (group == "ALL") "전체" else muscleGroupLabel(group)) }
+                            selected = viewMode == mode,
+                            onClick = { viewMode = mode },
+                            label = {
+                                Text(when (mode) {
+                                    "EXERCISE" -> "운동별"
+                                    "GROUP" -> "부위별"
+                                    else -> "오늘"
+                                })
+                            }
                         )
                     }
                 }
+                if (viewMode == "GROUP") {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(MUSCLE_GROUPS, key = { it }) { group ->
+                            FilterChip(
+                                selected = selectedGroup == group,
+                                onClick = { selectedGroup = group },
+                                label = { Text(muscleGroupLabel(group)) }
+                            )
+                        }
+                    }
+                }
+                if (viewMode == "EXERCISE" && exerciseNames.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(exerciseNames, key = { it }) { exercise ->
+                            FilterChip(
+                                selected = activeExercise == exercise,
+                                onClick = { selectedExercise = exercise },
+                                label = { Text(exercise) }
+                            )
+                        }
+                    }
+                }
+                if (viewMode == "EXERCISE" && activeExercise.isNotBlank()) {
+                    ExerciseTrendCard(
+                        exerciseName = activeExercise,
+                        records = visibleRecords,
+                        strengthSets = routineSets
+                    )
+                }
                 Text(
-                    "운동 기록",
+                    when (viewMode) {
+                        "GROUP" -> "${muscleGroupLabel(selectedGroup)} 기록"
+                        "EXERCISE" -> if (activeExercise.isBlank()) "운동별 기록" else "$activeExercise 기록"
+                        else -> "오늘 한 운동"
+                    },
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(top = 14.dp, bottom = 10.dp)
                 )
@@ -128,7 +177,11 @@ fun StrengthRecordOverlay(
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
                             Text(
-                                if (selectedGroup == "ALL") "아직 기록이 없어요" else "이 부위의 기록이 없어요",
+                                when (viewMode) {
+                                    "GROUP" -> "이 부위의 기록이 없어요"
+                                    "EXERCISE" -> "선택할 운동 기록이 없어요"
+                                    else -> "오늘 기록한 운동이 없어요"
+                                },
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Text("종목을 고르고 세트별 중량과 횟수를 남겨보세요.")
@@ -169,7 +222,7 @@ fun StrengthRecordOverlay(
                                         ) {
                                             Text("${set.setNumber}세트")
                                             Text(
-                                                "${formatWeight(set.weightKg)}kg × ${set.reps}회",
+                                                setDisplayText(set),
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.SemiBold
                                             )
@@ -221,6 +274,65 @@ private fun StrengthSummaryCard(label: String, value: String, modifier: Modifier
 }
 
 @Composable
+private fun ExerciseTrendCard(
+    exerciseName: String,
+    records: List<StrengthRecordEntity>,
+    strengthSets: List<StrengthSetEntity>
+) {
+    val points = records.groupBy { it.performedDate }
+        .toSortedMap()
+        .map { (date, dateRecords) ->
+            val ids = dateRecords.map { it.id }.toSet()
+            val sets = strengthSets.filter { it.recordId in ids }
+            TrendPoint(
+                date = date,
+                bestWeight = sets.mapNotNull { it.weightKg }.maxOrNull(),
+                totalReps = sets.sumOf { it.reps },
+                setCount = sets.size
+            )
+        }
+        .takeLast(8)
+    val usesWeight = points.any { it.bestWeight != null }
+    val maxMetric = points.maxOfOrNull {
+        if (usesWeight) it.bestWeight ?: 0.0 else it.totalReps.toDouble()
+    }?.coerceAtLeast(1.0) ?: 1.0
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("$exerciseName 변화", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (usesWeight) "날짜별 최고 중량 · 반복 · 세트" else "날짜별 반복 · 세트",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            points.forEach { point ->
+                val metric = if (usesWeight) point.bestWeight ?: 0.0 else point.totalReps.toDouble()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(point.date.drop(5), style = MaterialTheme.typography.labelMedium)
+                    LinearProgressIndicator(
+                        progress = { (metric / maxMetric).toFloat() },
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    )
+                    Text(
+                        buildString {
+                            if (point.bestWeight != null) append("${formatWeight(point.bestWeight)}kg · ")
+                            append("${point.totalReps}회 · ${point.setCount}세트")
+                        },
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StrengthRecordDialog(
     routine: RoutineEntity,
     recentRecords: List<StrengthRecordEntity>,
@@ -243,7 +355,9 @@ private fun StrengthRecordDialog(
     val setDrafts = remember(initialRecord?.id) {
         mutableStateListOf<SetDraft>().apply {
             if (initialSets.isEmpty()) add(SetDraft())
-            else addAll(initialSets.map { SetDraft(formatWeight(it.weightKg), it.reps.toString()) })
+            else addAll(initialSets.map {
+                SetDraft(it.weightKg?.let(::formatWeight).orEmpty(), it.reps.toString())
+            })
         }
     }
     val exerciseOptions = remember(muscleGroup, customExercises.toList()) {
@@ -258,7 +372,7 @@ private fun StrengthRecordDialog(
     val validSets = setDrafts.isNotEmpty() && setDrafts.all {
         val weight = it.weight.toDoubleOrNull()
         val reps = it.reps.toIntOrNull()
-        weight != null && weight >= 0 && reps != null && reps > 0
+        (it.weight.isBlank() || (weight != null && weight > 0)) && reps != null && reps > 0
     }
 
     AlertDialog(
@@ -342,7 +456,9 @@ private fun StrengthRecordDialog(
                     FilledTonalButton(
                         onClick = {
                             setDrafts.clear()
-                            setDrafts.addAll(previousSets.map { SetDraft(formatWeight(it.weightKg), it.reps.toString()) })
+                            setDrafts.addAll(previousSets.map {
+                                SetDraft(it.weightKg?.let(::formatWeight).orEmpty(), it.reps.toString())
+                            })
                         }
                     ) { Text("직전 ${previousSets.size}세트 불러오기") }
                 }
@@ -361,7 +477,8 @@ private fun StrengthRecordDialog(
                                     setDrafts[index] = draft.copy(weight = value)
                                 }
                             },
-                            label = { Text("kg") },
+                            label = { Text("중량(선택)") },
+                            placeholder = { Text("맨몸") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             modifier = Modifier.weight(1f)
@@ -410,7 +527,7 @@ private fun StrengthRecordDialog(
                         performedDate = performedDate,
                         muscleGroup = muscleGroup,
                         exerciseName = exerciseName,
-                        weightKg = firstSet.weight.toDouble(),
+                        weightKg = firstSet.weight.toDoubleOrNull() ?: 0.0,
                         reps = firstSet.reps.toInt(),
                         sets = setDrafts.size,
                         note = note.trim(),
@@ -420,7 +537,7 @@ private fun StrengthRecordDialog(
                         StrengthSetEntity(
                             recordId = recordId,
                             setNumber = index + 1,
-                            weightKg = draft.weight.toDouble(),
+                            weightKg = draft.weight.toDoubleOrNull(),
                             reps = draft.reps.toInt()
                         )
                     }
@@ -456,10 +573,15 @@ private val EXERCISE_LIBRARY = mapOf(
 
 private data class SetDraft(val weight: String = "", val reps: String = "")
 
+private data class TrendPoint(
+    val date: String,
+    val bestWeight: Double?,
+    val totalReps: Int,
+    val setCount: Int
+)
+
+private fun setDisplayText(set: StrengthSetEntity): String =
+    set.weightKg?.let { "${formatWeight(it)}kg × ${set.reps}회" } ?: "${set.reps}회 · 맨몸"
+
 private fun formatWeight(weight: Double): String =
     if (weight % 1.0 == 0.0) weight.toLong().toString() else "%.1f".format(weight)
-
-private fun formatVolume(volume: Double): String = when {
-    volume >= 1000 -> "%.1f천".format(volume / 1000)
-    else -> volume.toLong().toString()
-}
