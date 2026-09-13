@@ -925,8 +925,11 @@ private fun RoutineDialog(
 
 private fun exerciseTypeCode(type: Int): String = when (type) {
     ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "WALKING"
-    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "RUNNING"
-    ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING -> "STRENGTH_TRAINING"
+    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING,
+    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL -> "RUNNING"
+    ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+    ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING,
+    ExerciseSessionRecord.EXERCISE_TYPE_CALISTHENICS -> "STRENGTH_TRAINING"
     else -> "OTHER"
 }
 
