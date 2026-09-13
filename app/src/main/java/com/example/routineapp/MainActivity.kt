@@ -1,6 +1,8 @@
 package com.example.routineapp
 
+import android.content.Intent
 import android.os.Bundle
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -68,7 +70,8 @@ private fun RoutineScreen(database: AppDatabase) {
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
-    val healthConnectStatus = HealthConnectClient.getSdkStatus(context)
+    val providerPackageName = "com.google.android.apps.healthdata"
+    val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
     val healthConnectClient = remember(context, healthConnectAvailable) {
         if (healthConnectAvailable) HealthConnectClient.getOrCreate(context) else null
@@ -134,27 +137,56 @@ private fun RoutineScreen(database: AppDatabase) {
 
             Spacer(Modifier.height(10.dp))
 
-            if (!healthConnectAvailable) {
-                Text(
-                    "Health Connect를 사용할 수 없는 기기입니다.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            } else {
-                OutlinedButton(
-                    onClick = {
-                        if (healthConnectClient != null) {
+            val needsHealthConnectUpdate =
+                healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
+
+            OutlinedButton(
+                onClick = {
+                    when {
+                        healthConnectAvailable && healthConnectClient != null -> {
                             permissionLauncher.launch(healthPermissions)
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (hasHealthPermission) "Health Connect 연결됨" else "운동 데이터 연결")
-                }
+                        else -> {
+                            val marketIntent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("market://details?id=$providerPackageName")
+                                setPackage("com.android.vending")
+                            }
+                            val webIntent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
+                            )
+                            runCatching { context.startActivity(marketIntent) }
+                                .getOrElse { context.startActivity(webIntent) }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    when {
+                        hasHealthPermission -> "Health Connect 연결됨"
+                        needsHealthConnectUpdate -> "Health Connect 업데이트"
+                        healthConnectAvailable -> "운동 데이터 연결"
+                        else -> "Health Connect 설치"
+                    }
+                )
+            }
+            if (healthConnectAvailable) {
                 Text(
                     if (hasHealthPermission) {
                         "오늘 운동 세션: ${todayWorkoutCount}개"
                     } else {
                         "운동 자동 체크를 위해 권한을 허용해주세요."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            } else {
+                Text(
+                    if (needsHealthConnectUpdate) {
+                        "Health Connect를 업데이트한 후 다시 시도해주세요."
+                    } else {
+                        "Health Connect 설치 후 운동 데이터를 연결할 수 있습니다."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
