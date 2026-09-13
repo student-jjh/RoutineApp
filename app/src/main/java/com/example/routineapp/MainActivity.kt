@@ -81,6 +81,7 @@ private fun RoutineScreen(database: AppDatabase) {
     }
     var hasHealthPermission by remember { mutableStateOf(false) }
     var todayWorkoutCount by remember { mutableStateOf(0) }
+    var healthConnectMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
@@ -144,19 +145,26 @@ private fun RoutineScreen(database: AppDatabase) {
                 onClick = {
                     when {
                         healthConnectAvailable && healthConnectClient != null -> {
-                            permissionLauncher.launch(healthPermissions)
+                            runCatching {
+                                permissionLauncher.launch(healthPermissions)
+                            }.onSuccess {
+                                healthConnectMessage = "Health Connect 권한 화면을 여는 중입니다."
+                            }.onFailure {
+                                healthConnectMessage = "권한 화면을 열 수 없습니다: ${it.message}"
+                            }
                         }
                         else -> {
-                            val marketIntent = Intent(Intent.ACTION_VIEW).apply {
-                                data = Uri.parse("market://details?id=$providerPackageName")
-                                setPackage("com.android.vending")
-                            }
                             val webIntent = Intent(
                                 Intent.ACTION_VIEW,
                                 Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
                             )
-                            runCatching { context.startActivity(marketIntent) }
-                                .getOrElse { context.startActivity(webIntent) }
+                            runCatching { context.startActivity(webIntent) }
+                                .onSuccess {
+                                    healthConnectMessage = "Health Connect 설치 페이지를 여는 중입니다."
+                                }
+                                .onFailure {
+                                    healthConnectMessage = "설치 페이지를 열 수 없습니다: ${it.message}"
+                                }
                         }
                     }
                 },
@@ -190,6 +198,13 @@ private fun RoutineScreen(database: AppDatabase) {
                     },
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            healthConnectMessage?.let { message ->
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
 
