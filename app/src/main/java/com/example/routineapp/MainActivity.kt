@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -41,6 +42,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -176,15 +179,21 @@ private fun RoutineScreen(database: AppDatabase) {
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Text(
-                if (selectedTab == 0) "오늘의 루틴" else "루틴 설정",
-                style = MaterialTheme.typography.headlineMedium
-            )
-            Text(
-                if (selectedTab == 0) "오늘 해야 할 일을 한눈에 확인하세요." else "나에게 맞는 루틴을 만들어보세요.",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Image(
+                    painter = painterResource(id = R.drawable.routive_logo),
+                    contentDescription = "루티브 로고",
+                    modifier = Modifier.size(48.dp)
+                )
+                Text("루티브", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 10.dp))
+            }
+            if (selectedTab == 1) {
+                Text(
+                    "나에게 맞는 루틴을 만들어보세요.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             Spacer(Modifier.height(20.dp))
 
             if (selectedTab == 1) {
