@@ -320,6 +320,7 @@ private fun RoutineScreen(database: AppDatabase) {
                                 routine = routine,
                                 onEdit = { editingRoutine = routine },
                                 onDelete = { scope.launch { dao.delete(routine) } },
+                                compact = true,
                                 onCardClick = {
                                     val completedDate = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                                         null
@@ -343,7 +344,8 @@ private fun RoutineScreen(database: AppDatabase) {
                             RoutineCard(
                                 routine = routine,
                                 onEdit = { editingRoutine = routine },
-                                onDelete = { scope.launch { dao.delete(routine) } }
+                                onDelete = { scope.launch { dao.delete(routine) } },
+                                showCompletionStatus = false
                             )
                         }
                     }
@@ -411,20 +413,22 @@ private fun RoutineCard(
     routine: RoutineEntity,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onCardClick: (() -> Unit)? = null
+    onCardClick: (() -> Unit)? = null,
+    showCompletionStatus: Boolean = true,
+    compact: Boolean = false
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(if (compact) 12.dp else 16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
                 Text(routine.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Icon(
+                if (showCompletionStatus) Icon(
                     imageVector = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                         Icons.Default.CheckCircle
                     } else {
@@ -436,10 +440,10 @@ private fun RoutineCard(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(if (compact) 30.dp else 32.dp)
                 )
             }
-            if (routine.description.isNotBlank()) {
+            if (routine.description.isNotBlank() && !compact) {
                 Text(
                     routine.description,
                     style = MaterialTheme.typography.bodyMedium,
@@ -453,7 +457,7 @@ private fun RoutineCard(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            Row(
+            if (!compact) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
