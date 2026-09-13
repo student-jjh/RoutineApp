@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -121,8 +124,9 @@ private fun RoutineScreen(database: AppDatabase) {
 
             routines.toList().forEach { routine ->
                 val matched = todayWorkouts.any { workout ->
-                    val typeMatches = routine.exerciseType == "ANY" ||
-                        routine.exerciseType == exerciseTypeCode(workout.exerciseType)
+                    val typeMatches = routine.category == "EXERCISE" &&
+                        (routine.exerciseType == "ANY" ||
+                            routine.exerciseType == exerciseTypeCode(workout.exerciseType))
                     val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
                     typeMatches && durationMinutes >= routine.minimumDurationMinutes
                 }
@@ -245,12 +249,13 @@ private fun RoutineScreen(database: AppDatabase) {
         RoutineDialog(
             title = "루틴 추가",
             onDismiss = { isAdding = false },
-            onSave = { name, description, exerciseType, minimumDuration ->
+            onSave = { name, description, category, exerciseType, minimumDuration ->
                 scope.launch {
                     dao.insert(
                         RoutineEntity(
                             name = name,
                             description = description,
+                            category = category,
                             exerciseType = exerciseType,
                             minimumDurationMinutes = minimumDuration
                         )
@@ -266,10 +271,11 @@ private fun RoutineScreen(database: AppDatabase) {
             title = "루틴 수정",
             initialName = routine.name,
             initialDescription = routine.description,
+            initialCategory = routine.category,
             initialExerciseType = routine.exerciseType,
             initialMinimumDuration = routine.minimumDurationMinutes,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description, exerciseType, minimumDuration ->
+            onSave = { name, description, category, exerciseType, minimumDuration ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
@@ -277,6 +283,7 @@ private fun RoutineScreen(database: AppDatabase) {
                             routine.copy(
                                 name = name,
                                 description = description,
+                                category = category,
                                 exerciseType = exerciseType,
                                 minimumDurationMinutes = minimumDuration
                             )
@@ -302,7 +309,9 @@ private fun RoutineCard(routine: RoutineEntity, onEdit: () -> Unit, onDelete: ()
                 )
             }
             Text(
-                "조건: ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상",
+                "${categoryLabel(routine.category)}" + if (routine.category == "EXERCISE") {
+                    " · ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
+                } else "",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
@@ -334,14 +343,18 @@ private fun RoutineDialog(
     title: String,
     initialName: String = "",
     initialDescription: String = "",
+    initialCategory: String = "GENERAL",
     initialExerciseType: String = "ANY",
     initialMinimumDuration: Int = 0,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Int) -> Unit
+    onSave: (String, String, String, String, Int) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
+    var category by remember { mutableStateOf(initialCategory) }
+    var categoryExpanded by remember { mutableStateOf(false) }
     var exerciseType by remember { mutableStateOf(initialExerciseType) }
+    var exerciseTypeExpanded by remember { mutableStateOf(false) }
     var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
 
     AlertDialog(
@@ -356,25 +369,59 @@ private fun RoutineDialog(
                     singleLine = true
                 )
                 OutlinedTextField(
-                    value = exerciseType,
-                    onValueChange = { exerciseType = it.uppercase() },
-                    label = { Text("운동 종류 (ANY/WALKING/RUNNING/STRENGTH_TRAINING)") },
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = minimumDuration,
-                    onValueChange = { value ->
-                        if (value.all(Char::isDigit)) minimumDuration = value
-                    },
-                    label = { Text("최소 운동 시간(분)") },
-                    singleLine = true
-                )
-                OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("설명") },
                     singleLine = true
                 )
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }) {
+                        Text("분류: ${categoryLabel(category)}")
+                    }
+                    DropdownMenu(
+                        expanded = categoryExpanded,
+                        onDismissRequest = { categoryExpanded = false }
+                    ) {
+                        listOf("GENERAL", "EXERCISE").forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(categoryLabel(option)) },
+                                onClick = {
+                                    category = option
+                                    categoryExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                if (category == "EXERCISE") {
+                    Box {
+                        OutlinedButton(onClick = { exerciseTypeExpanded = true }) {
+                            Text("운동 종류: ${exerciseTypeLabel(exerciseType)}")
+                        }
+                        DropdownMenu(
+                            expanded = exerciseTypeExpanded,
+                            onDismissRequest = { exerciseTypeExpanded = false }
+                        ) {
+                            listOf("ANY", "WALKING", "RUNNING", "STRENGTH_TRAINING").forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(exerciseTypeLabel(option)) },
+                                    onClick = {
+                                        exerciseType = option
+                                        exerciseTypeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = minimumDuration,
+                        onValueChange = { value ->
+                            if (value.all(Char::isDigit)) minimumDuration = value
+                        },
+                        label = { Text("최소 운동 시간(분)") },
+                        singleLine = true
+                    )
+                }
             }
         },
         confirmButton = {
@@ -383,6 +430,7 @@ private fun RoutineDialog(
                     onSave(
                         name.trim(),
                         description.trim(),
+                        category,
                         exerciseType.trim().ifBlank { "ANY" },
                         minimumDuration.toIntOrNull() ?: 0
                     )
@@ -409,4 +457,9 @@ private fun exerciseTypeLabel(type: String): String = when (type) {
     "STRENGTH_TRAINING" -> "근력 운동"
     "ANY" -> "전체 운동"
     else -> type
+}
+
+private fun categoryLabel(category: String): String = when (category) {
+    "EXERCISE" -> "운동"
+    else -> "일반"
 }
