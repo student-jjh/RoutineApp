@@ -174,7 +174,7 @@ private fun RoutineScreen(database: AppDatabase) {
             val needsHealthConnectUpdate =
                 healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
-            OutlinedButton(
+            if (!hasHealthPermission) OutlinedButton(
                 onClick = {
                     when {
                         healthConnectAvailable && healthConnectClient != null -> {
@@ -210,6 +210,12 @@ private fun RoutineScreen(database: AppDatabase) {
                         healthConnectAvailable -> "운동 데이터 연결"
                         else -> "Health Connect 설치"
                     }
+                )
+            } else {
+                Text(
+                    "Health Connect 연결됨",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
             if (healthConnectAvailable) {
@@ -479,16 +485,34 @@ private fun RoutineDialog(
                     )
                 }
                 Text("적용 요일", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(onClick = { activeDays = WEEKDAYS }, modifier = Modifier.weight(1f)) { Text("평일") }
+                        OutlinedButton(onClick = { activeDays = WEEKENDS }, modifier = Modifier.weight(1f)) { Text("주말") }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(onClick = { activeDays = ALL_DAY_SET }, modifier = Modifier.weight(1f)) { Text("전체") }
+                        OutlinedButton(onClick = { activeDays = emptySet() }, modifier = Modifier.weight(1f)) { Text("초기화") }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     listOf(
-                        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
-                    ).forEach { day ->
-                        val selected = day.name in activeDays
-                        TextButton(onClick = {
-                            activeDays = if (selected) activeDays - day.name else activeDays + day.name
-                        }) {
-                            Text(todayDayLabel(day).take(1))
+                        listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY),
+                        listOf(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+                    ).forEach { days ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            days.forEach { day ->
+                                val selected = day.name in activeDays
+                                TextButton(
+                                    onClick = {
+                                        activeDays = if (selected) activeDays - day.name else activeDays + day.name
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(todayDayLabel(day))
+                                }
+                            }
+                            repeat(4 - days.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -536,6 +560,15 @@ private fun categoryLabel(category: String): String = when (category) {
 }
 
 private val ALL_DAYS = DayOfWeek.values().joinToString(",") { it.name }
+private val WEEKDAYS = setOf(
+    DayOfWeek.MONDAY.name,
+    DayOfWeek.TUESDAY.name,
+    DayOfWeek.WEDNESDAY.name,
+    DayOfWeek.THURSDAY.name,
+    DayOfWeek.FRIDAY.name
+)
+private val WEEKENDS = setOf(DayOfWeek.SATURDAY.name, DayOfWeek.SUNDAY.name)
+private val ALL_DAY_SET = DayOfWeek.values().map { it.name }.toSet()
 
 private fun todayDayLabel(day: DayOfWeek): String = when (day) {
     DayOfWeek.MONDAY -> "월"
