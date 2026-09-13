@@ -9,6 +9,7 @@ data class RoutineEntity(
     val name: String,
     val description: String,
     val category: String = "GENERAL",
+    val activeDays: String = "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY",
     val exerciseType: String = "ANY",
     val minimumDurationMinutes: Int = 0,
     val lastCompletedDate: String? = null

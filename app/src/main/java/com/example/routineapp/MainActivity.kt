@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Duration
+import java.time.DayOfWeek
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +75,7 @@ private fun RoutineScreen(database: AppDatabase) {
     val scope = rememberCoroutineScope()
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) }
     val providerPackageName = "com.google.android.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
@@ -151,11 +153,23 @@ private fun RoutineScreen(database: AppDatabase) {
                 modifier = Modifier.padding(top = 4.dp)
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = { isAdding = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("루틴 추가")
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (selectedTab == 0) {
+                    Button(onClick = { selectedTab = 0 }, modifier = Modifier.weight(1f)) { Text("오늘") }
+                    OutlinedButton(onClick = { selectedTab = 1 }, modifier = Modifier.weight(1f)) { Text("루틴 설정") }
+                } else {
+                    OutlinedButton(onClick = { selectedTab = 0 }, modifier = Modifier.weight(1f)) { Text("오늘") }
+                    Button(onClick = { selectedTab = 1 }, modifier = Modifier.weight(1f)) { Text("루틴 설정") }
+                }
             }
 
             Spacer(Modifier.height(10.dp))
+
+            if (selectedTab == 1) {
+                Button(onClick = { isAdding = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("루틴 추가")
+                }
+                Spacer(Modifier.height(10.dp))
 
             val needsHealthConnectUpdate =
                 healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
@@ -226,19 +240,46 @@ private fun RoutineScreen(database: AppDatabase) {
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+            }
 
             Spacer(Modifier.height(16.dp))
 
-            if (routines.isEmpty()) {
-                Text("등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
+            val todayDay = DayOfWeek.from(java.time.LocalDate.now())
+            val todayRoutines = routines.filter { it.activeDays.split(",").contains(todayDay.name) }
+            if (selectedTab == 0) {
+                Text("오늘의 루틴", style = MaterialTheme.typography.titleLarge)
+                Text("${todayDayLabel(todayDay)}요일에 설정된 루틴", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(10.dp))
+                if (todayRoutines.isEmpty()) {
+                    Text("오늘 예정된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(todayRoutines, key = { it.id }) { routine ->
+                            RoutineCard(
+                                routine = routine,
+                                onEdit = { editingRoutine = routine },
+                                onDelete = { scope.launch { dao.delete(routine) } },
+                                onManualComplete = {
+                                    scope.launch { dao.update(routine.copy(lastCompletedDate = LocalDate.now().toString())) }
+                                }
+                            )
+                        }
+                    }
+                }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(routines, key = { it.id }) { routine ->
-                        RoutineCard(
-                            routine = routine,
-                            onEdit = { editingRoutine = routine },
-                            onDelete = { scope.launch { dao.delete(routine) } }
-                        )
+                Text("설정된 루틴", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(10.dp))
+                if (routines.isEmpty()) {
+                    Text("등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(routines, key = { it.id }) { routine ->
+                            RoutineCard(
+                                routine = routine,
+                                onEdit = { editingRoutine = routine },
+                                onDelete = { scope.launch { dao.delete(routine) } }
+                            )
+                        }
                     }
                 }
             }
@@ -249,13 +290,14 @@ private fun RoutineScreen(database: AppDatabase) {
         RoutineDialog(
             title = "루틴 추가",
             onDismiss = { isAdding = false },
-            onSave = { name, description, category, exerciseType, minimumDuration ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
                 scope.launch {
                     dao.insert(
                         RoutineEntity(
                             name = name,
                             description = description,
                             category = category,
+                            activeDays = activeDays,
                             exerciseType = exerciseType,
                             minimumDurationMinutes = minimumDuration
                         )
@@ -272,10 +314,11 @@ private fun RoutineScreen(database: AppDatabase) {
             initialName = routine.name,
             initialDescription = routine.description,
             initialCategory = routine.category,
+            initialActiveDays = routine.activeDays,
             initialExerciseType = routine.exerciseType,
             initialMinimumDuration = routine.minimumDurationMinutes,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description, category, exerciseType, minimumDuration ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
@@ -284,6 +327,7 @@ private fun RoutineScreen(database: AppDatabase) {
                                 name = name,
                                 description = description,
                                 category = category,
+                                activeDays = activeDays,
                                 exerciseType = exerciseType,
                                 minimumDurationMinutes = minimumDuration
                             )
@@ -297,7 +341,12 @@ private fun RoutineScreen(database: AppDatabase) {
 }
 
 @Composable
-private fun RoutineCard(routine: RoutineEntity, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun RoutineCard(
+    routine: RoutineEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onManualComplete: (() -> Unit)? = null
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(routine.name, style = MaterialTheme.typography.titleMedium)
@@ -332,6 +381,11 @@ private fun RoutineCard(routine: RoutineEntity, onEdit: () -> Unit, onDelete: ()
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onEdit) { Text("수정") }
+                onManualComplete?.let {
+                    TextButton(onClick = it) {
+                        Text(if (routine.lastCompletedDate == LocalDate.now().toString()) "완료됨" else "완료 처리")
+                    }
+                }
                 TextButton(onClick = onDelete) { Text("삭제") }
             }
         }
@@ -344,15 +398,17 @@ private fun RoutineDialog(
     initialName: String = "",
     initialDescription: String = "",
     initialCategory: String = "GENERAL",
+    initialActiveDays: String = ALL_DAYS,
     initialExerciseType: String = "ANY",
     initialMinimumDuration: Int = 0,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Int) -> Unit
+    onSave: (String, String, String, String, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
     var category by remember { mutableStateOf(initialCategory) }
     var categoryExpanded by remember { mutableStateOf(false) }
+    var activeDays by remember { mutableStateOf(initialActiveDays.split(",").filter { it.isNotBlank() }.toSet()) }
     var exerciseType by remember { mutableStateOf(initialExerciseType) }
     var exerciseTypeExpanded by remember { mutableStateOf(false) }
     var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
@@ -422,6 +478,20 @@ private fun RoutineDialog(
                         singleLine = true
                     )
                 }
+                Text("적용 요일", style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
+                    ).forEach { day ->
+                        val selected = day.name in activeDays
+                        TextButton(onClick = {
+                            activeDays = if (selected) activeDays - day.name else activeDays + day.name
+                        }) {
+                            Text(todayDayLabel(day).take(1))
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -432,7 +502,8 @@ private fun RoutineDialog(
                         description.trim(),
                         category,
                         exerciseType.trim().ifBlank { "ANY" },
-                        minimumDuration.toIntOrNull() ?: 0
+                        minimumDuration.toIntOrNull() ?: 0,
+                        activeDays.sorted().joinToString(",")
                     )
                 },
                 enabled = name.isNotBlank()
@@ -462,4 +533,16 @@ private fun exerciseTypeLabel(type: String): String = when (type) {
 private fun categoryLabel(category: String): String = when (category) {
     "EXERCISE" -> "운동"
     else -> "일반"
+}
+
+private val ALL_DAYS = DayOfWeek.values().joinToString(",") { it.name }
+
+private fun todayDayLabel(day: DayOfWeek): String = when (day) {
+    DayOfWeek.MONDAY -> "월"
+    DayOfWeek.TUESDAY -> "화"
+    DayOfWeek.WEDNESDAY -> "수"
+    DayOfWeek.THURSDAY -> "목"
+    DayOfWeek.FRIDAY -> "금"
+    DayOfWeek.SATURDAY -> "토"
+    DayOfWeek.SUNDAY -> "일"
 }

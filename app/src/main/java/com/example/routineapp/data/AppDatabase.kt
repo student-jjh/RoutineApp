@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [RoutineEntity::class], version = 3, exportSchema = false)
+@Database(entities = [RoutineEntity::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun routineDao(): RoutineDao
 
@@ -19,7 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "routine_database"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
             }
 
         private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -35,6 +35,14 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE routines ADD COLUMN category TEXT NOT NULL DEFAULT 'GENERAL'")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE routines ADD COLUMN activeDays TEXT NOT NULL DEFAULT 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY'"
+                )
             }
         }
     }
