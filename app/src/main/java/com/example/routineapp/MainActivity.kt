@@ -22,8 +22,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -77,7 +81,7 @@ private fun RoutineScreen(database: AppDatabase) {
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
-    val providerPackageName = "com.google.and2roid.apps.healthdata"
+    val providerPackageName = "com.google.android.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
     val healthConnectClient = remember(context, healthConnectAvailable) {
@@ -140,31 +144,41 @@ private fun RoutineScreen(database: AppDatabase) {
         }
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Text("오늘") },
+                    label = { Text("오늘") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = { Text("설정") },
+                    label = { Text("루틴 설정") }
+                )
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            Text("내 루틴", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "운동 루틴을 추가하고 관리해보세요.",
+                if (selectedTab == 0) "오늘의 루틴" else "루틴 설정",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Text(
+                if (selectedTab == 0) "오늘 해야 할 일을 한눈에 확인하세요." else "나에게 맞는 루틴을 만들어보세요.",
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 4.dp)
             )
-            Spacer(Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (selectedTab == 0) {
-                    Button(onClick = { selectedTab = 0 }, modifier = Modifier.weight(1f)) { Text("오늘") }
-                    OutlinedButton(onClick = { selectedTab = 1 }, modifier = Modifier.weight(1f)) { Text("루틴 설정") }
-                } else {
-                    OutlinedButton(onClick = { selectedTab = 0 }, modifier = Modifier.weight(1f)) { Text("오늘") }
-                    Button(onClick = { selectedTab = 1 }, modifier = Modifier.weight(1f)) { Text("루틴 설정") }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(20.dp))
 
             if (selectedTab == 1) {
                 Button(onClick = { isAdding = true }, modifier = Modifier.fillMaxWidth()) {
@@ -254,9 +268,31 @@ private fun RoutineScreen(database: AppDatabase) {
             val todayDay = DayOfWeek.from(java.time.LocalDate.now())
             val todayRoutines = routines.filter { it.activeDays.split(",").contains(todayDay.name) }
             if (selectedTab == 0) {
-                Text("오늘의 루틴", style = MaterialTheme.typography.titleLarge)
-                Text("${todayDayLabel(todayDay)}요일에 설정된 루틴", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(10.dp))
+                val completedToday = todayRoutines.count { it.lastCompletedDate == LocalDate.now().toString() }
+                val progress = if (todayRoutines.isEmpty()) 0f else completedToday.toFloat() / todayRoutines.size
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("${todayDayLabel(todayDay)}요일 진행 상황", style = MaterialTheme.typography.titleMedium)
+                        Text("$completedToday / ${todayRoutines.size}개 완료", style = MaterialTheme.typography.headlineSmall)
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                        )
+                        if (hasHealthPermission) {
+                            Text(
+                                "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
                 if (todayRoutines.isEmpty()) {
                     Text("오늘 예정된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
                 } else {
