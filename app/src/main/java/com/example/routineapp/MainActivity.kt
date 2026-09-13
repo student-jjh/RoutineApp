@@ -77,7 +77,7 @@ private fun RoutineScreen(database: AppDatabase) {
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
-    val providerPackageName = "com.google.android.apps.healthdata"
+    val providerPackageName = "com.google.and2roid.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
     val healthConnectClient = remember(context, healthConnectAvailable) {
