@@ -49,6 +49,7 @@ import com.example.routineapp.data.RoutineEntity
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.Duration
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +82,7 @@ private fun RoutineScreen(database: AppDatabase) {
     }
     var hasHealthPermission by remember { mutableStateOf(false) }
     var todayWorkoutCount by remember { mutableStateOf(0) }
+    var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
     var healthConnectMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -109,12 +111,25 @@ private fun RoutineScreen(database: AppDatabase) {
             val today = LocalDate.now(zone)
             val start = today.atStartOfDay(zone).toInstant()
             val end = today.plusDays(1).atStartOfDay(zone).toInstant()
-            todayWorkoutCount = healthConnectClient.readRecords(
+            todayWorkouts = healthConnectClient.readRecords(
                 ReadRecordsRequest<ExerciseSessionRecord>(
                     recordType = ExerciseSessionRecord::class,
                     timeRangeFilter = TimeRangeFilter.between(start, end)
                 )
-            ).records.size
+            ).records
+            todayWorkoutCount = todayWorkouts.size
+
+            routines.toList().forEach { routine ->
+                val matched = todayWorkouts.any { workout ->
+                    val typeMatches = routine.exerciseType == "ANY" ||
+                        routine.exerciseType == exerciseTypeCode(workout.exerciseType)
+                    val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
+                    typeMatches && durationMinutes >= routine.minimumDurationMinutes
+                }
+                if (matched && routine.lastCompletedDate != today.toString()) {
+                    dao.update(routine.copy(lastCompletedDate = today.toString()))
+                }
+            }
         }
     }
 
@@ -230,8 +245,17 @@ private fun RoutineScreen(database: AppDatabase) {
         RoutineDialog(
             title = "루틴 추가",
             onDismiss = { isAdding = false },
-            onSave = { name, description ->
-                scope.launch { dao.insert(RoutineEntity(name = name, description = description)) }
+            onSave = { name, description, exerciseType, minimumDuration ->
+                scope.launch {
+                    dao.insert(
+                        RoutineEntity(
+                            name = name,
+                            description = description,
+                            exerciseType = exerciseType,
+                            minimumDurationMinutes = minimumDuration
+                        )
+                    )
+                }
                 isAdding = false
             }
         )
@@ -242,12 +266,21 @@ private fun RoutineScreen(database: AppDatabase) {
             title = "루틴 수정",
             initialName = routine.name,
             initialDescription = routine.description,
+            initialExerciseType = routine.exerciseType,
+            initialMinimumDuration = routine.minimumDurationMinutes,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description ->
+            onSave = { name, description, exerciseType, minimumDuration ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
-                        dao.update(routine.copy(name = name, description = description))
+                        dao.update(
+                            routine.copy(
+                                name = name,
+                                description = description,
+                                exerciseType = exerciseType,
+                                minimumDurationMinutes = minimumDuration
+                            )
+                        )
                     }
                 }
                 editingRoutine = null
@@ -268,6 +301,21 @@ private fun RoutineCard(routine: RoutineEntity, onEdit: () -> Unit, onDelete: ()
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+            Text(
+                "조건: ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+            Text(
+                if (routine.lastCompletedDate == LocalDate.now().toString()) "오늘 완료됨" else "오늘 미완료",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (routine.lastCompletedDate == LocalDate.now().toString()) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(top = 4.dp)
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -286,11 +334,15 @@ private fun RoutineDialog(
     title: String,
     initialName: String = "",
     initialDescription: String = "",
+    initialExerciseType: String = "ANY",
+    initialMinimumDuration: Int = 0,
     onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
+    onSave: (String, String, String, Int) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
+    var exerciseType by remember { mutableStateOf(initialExerciseType) }
+    var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -304,6 +356,20 @@ private fun RoutineDialog(
                     singleLine = true
                 )
                 OutlinedTextField(
+                    value = exerciseType,
+                    onValueChange = { exerciseType = it.uppercase() },
+                    label = { Text("운동 종류 (ANY/WALKING/RUNNING/STRENGTH_TRAINING)") },
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = minimumDuration,
+                    onValueChange = { value ->
+                        if (value.all(Char::isDigit)) minimumDuration = value
+                    },
+                    label = { Text("최소 운동 시간(분)") },
+                    singleLine = true
+                )
+                OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("설명") },
@@ -313,7 +379,14 @@ private fun RoutineDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onSave(name.trim(), description.trim()) },
+                onClick = {
+                    onSave(
+                        name.trim(),
+                        description.trim(),
+                        exerciseType.trim().ifBlank { "ANY" },
+                        minimumDuration.toIntOrNull() ?: 0
+                    )
+                },
                 enabled = name.isNotBlank()
             ) { Text("저장") }
         },
@@ -321,4 +394,19 @@ private fun RoutineDialog(
             OutlinedButton(onClick = onDismiss) { Text("취소") }
         }
     )
+}
+
+private fun exerciseTypeCode(type: Int): String = when (type) {
+    ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "WALKING"
+    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "RUNNING"
+    ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING -> "STRENGTH_TRAINING"
+    else -> "OTHER"
+}
+
+private fun exerciseTypeLabel(type: String): String = when (type) {
+    "WALKING" -> "걷기"
+    "RUNNING" -> "달리기"
+    "STRENGTH_TRAINING" -> "근력 운동"
+    "ANY" -> "전체 운동"
+    else -> type
 }

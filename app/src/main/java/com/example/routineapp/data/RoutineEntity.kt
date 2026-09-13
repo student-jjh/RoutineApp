@@ -7,5 +7,8 @@ import androidx.room.PrimaryKey
 data class RoutineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val description: String
+    val description: String,
+    val exerciseType: String = "ANY",
+    val minimumDurationMinutes: Int = 0,
+    val lastCompletedDate: String? = null
 )
