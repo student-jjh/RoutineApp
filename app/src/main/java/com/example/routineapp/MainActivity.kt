@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -93,6 +94,7 @@ private fun RoutineScreen(database: AppDatabase) {
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
+    var focusedRoutineId by remember { mutableStateOf<Long?>(null) }
     val providerPackageName = "com.google.android.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
@@ -162,13 +164,19 @@ private fun RoutineScreen(database: AppDatabase) {
             NavigationBar {
                 NavigationBarItem(
                     selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
+                    onClick = {
+                        selectedTab = 0
+                        focusedRoutineId = null
+                    },
                     icon = { Icon(Icons.Default.Today, contentDescription = "오늘") },
                     label = { Text("오늘") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick = {
+                        selectedTab = 1
+                        focusedRoutineId = null
+                    },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
                     label = { Text("루틴 설정") }
                 )
@@ -318,10 +326,19 @@ private fun RoutineScreen(database: AppDatabase) {
                         items(todayRoutines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
-                                onEdit = { editingRoutine = routine },
-                                onDelete = { scope.launch { dao.delete(routine) } },
+                                onEdit = {
+                                    focusedRoutineId = null
+                                    editingRoutine = routine
+                                },
+                                onDelete = {
+                                    focusedRoutineId = null
+                                    scope.launch { dao.delete(routine) }
+                                },
                                 compact = true,
+                                showActions = focusedRoutineId == routine.id,
+                                onLongClick = { focusedRoutineId = routine.id },
                                 onCardClick = {
+                                    focusedRoutineId = null
                                     val completedDate = if (routine.lastCompletedDate == LocalDate.now().toString()) {
                                         null
                                     } else {
@@ -343,9 +360,16 @@ private fun RoutineScreen(database: AppDatabase) {
                         items(routines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
-                                onEdit = { editingRoutine = routine },
+                                onEdit = {
+                                    focusedRoutineId = null
+                                    editingRoutine = routine
+                                },
                                 onDelete = { scope.launch { dao.delete(routine) } },
-                                showCompletionStatus = false
+                                showCompletionStatus = false,
+                                onCardClick = {
+                                    focusedRoutineId = null
+                                    editingRoutine = routine
+                                }
                             )
                         }
                     }
@@ -408,19 +432,31 @@ private fun RoutineScreen(database: AppDatabase) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RoutineCard(
     routine: RoutineEntity,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onCardClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     showCompletionStatus: Boolean = true,
-    compact: Boolean = false
+    compact: Boolean = false,
+    showActions: Boolean = !compact
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onCardClick != null) Modifier.clickable(onClick = onCardClick) else Modifier)
+            .then(
+                if (onCardClick != null || onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = { onCardClick?.invoke() },
+                        onLongClick = { onLongClick?.invoke() }
+                    )
+                } else {
+                    Modifier
+                }
+            )
     ) {
         Column(modifier = Modifier.padding(if (compact) 12.dp else 16.dp)) {
             Row(
@@ -457,7 +493,7 @@ private fun RoutineCard(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp)
             )
-            if (!compact) Row(
+            if (showActions) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
