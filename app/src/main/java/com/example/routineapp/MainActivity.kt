@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -88,19 +89,34 @@ import java.time.YearMonth
 import java.time.Instant
 
 class MainActivity : ComponentActivity() {
+    private var healthRefreshVersion by mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             RoutineAppTheme {
-                RoutineScreen(database = AppDatabase.getInstance(applicationContext))
+                RoutineScreen(
+                    database = AppDatabase.getInstance(applicationContext),
+                    healthRefreshVersion = healthRefreshVersion,
+                    onRefreshHealth = { healthRefreshVersion++ }
+                )
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        healthRefreshVersion++
     }
 }
 
 @Composable
-private fun RoutineScreen(database: AppDatabase) {
+private fun RoutineScreen(
+    database: AppDatabase,
+    healthRefreshVersion: Int,
+    onRefreshHealth: () -> Unit
+) {
     val context = LocalContext.current
     val dao = database.routineDao()
     val completionDao = database.routineCompletionDao()
@@ -183,28 +199,38 @@ private fun RoutineScreen(database: AppDatabase) {
         }
     }
 
-    LaunchedEffect(healthConnectClient, hasHealthPermission) {
+    LaunchedEffect(healthConnectClient, hasHealthPermission, healthRefreshVersion) {
         if (healthConnectClient != null && hasHealthPermission) {
             val zone = ZoneId.systemDefault()
             val today = LocalDate.now(zone)
             val month = YearMonth.from(today)
             val monthStart = month.atDay(1).atStartOfDay(zone).toInstant()
             val monthEnd = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant()
-            val monthWorkouts = healthConnectClient.readRecords(
-                ReadRecordsRequest<ExerciseSessionRecord>(
-                    recordType = ExerciseSessionRecord::class,
-                    timeRangeFilter = TimeRangeFilter.between(monthStart, monthEnd)
-                )
-            ).records
-            val todayStart = today.atStartOfDay(zone).toInstant()
-            val tomorrowStart = today.plusDays(1).atStartOfDay(zone).toInstant()
-            todayWorkouts = monthWorkouts.filter {
-                it.startTime >= todayStart && it.startTime < tomorrowStart
-            }
-            todayWorkoutCount = todayWorkouts.size
-            monthWorkoutCount = monthWorkouts.size
-            monthWorkoutMinutes = monthWorkouts.sumOf {
-                Duration.between(it.startTime, it.endTime).toMinutes().coerceAtLeast(0)
+            runCatching {
+                healthConnectClient.readRecords(
+                    ReadRecordsRequest<ExerciseSessionRecord>(
+                        recordType = ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(monthStart, monthEnd)
+                    )
+                ).records
+            }.onSuccess { monthWorkouts ->
+                val todayStart = today.atStartOfDay(zone).toInstant()
+                val tomorrowStart = today.plusDays(1).atStartOfDay(zone).toInstant()
+                todayWorkouts = monthWorkouts.filter {
+                    it.startTime >= todayStart && it.startTime < tomorrowStart
+                }
+                todayWorkoutCount = todayWorkouts.size
+                monthWorkoutCount = monthWorkouts.size
+                monthWorkoutMinutes = monthWorkouts.sumOf {
+                    Duration.between(it.startTime, it.endTime).toMinutes().coerceAtLeast(0)
+                }
+                healthConnectMessage = if (todayWorkouts.isEmpty()) {
+                    "Health Connect에 오늘 운동 세션이 아직 없습니다."
+                } else {
+                    "오늘 운동 데이터를 새로 확인했습니다."
+                }
+            }.onFailure { error ->
+                healthConnectMessage = "운동 데이터를 읽지 못했습니다: ${error.message ?: "알 수 없는 오류"}"
             }
         }
     }
@@ -428,7 +454,21 @@ private fun RoutineScreen(database: AppDatabase) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("${todayDayLabel(todayDay)}요일 진행 상황", style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${todayDayLabel(todayDay)}요일 진행 상황",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (hasHealthPermission) {
+                                IconButton(onClick = onRefreshHealth) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "운동 데이터 새로고침")
+                                }
+                            }
+                        }
                         Text("$completedToday / ${todayRoutines.size}개 완료", style = MaterialTheme.typography.headlineSmall)
                         LinearProgressIndicator(
                             progress = { progress },
@@ -438,7 +478,11 @@ private fun RoutineScreen(database: AppDatabase) {
                         )
                         if (hasHealthPermission) {
                             Text(
-                                "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨",
+                                if (todayWorkoutCount > 0) {
+                                    "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨"
+                                } else {
+                                    "오늘 운동 데이터 없음 · 삼성 헬스 공유 상태를 확인해주세요"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
