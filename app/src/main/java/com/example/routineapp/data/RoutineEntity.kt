@@ -2,6 +2,7 @@ package com.example.routineapp.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 
 @Entity(tableName = "routines")
 data class RoutineEntity(
@@ -13,5 +14,7 @@ data class RoutineEntity(
     val exerciseType: String = "ANY",
     val minimumDurationMinutes: Int = 0,
     val muscleGroup: String = "FULL_BODY",
-    val lastCompletedDate: String? = null
+    val lastCompletedDate: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val createdAt: Long = System.currentTimeMillis()
 )

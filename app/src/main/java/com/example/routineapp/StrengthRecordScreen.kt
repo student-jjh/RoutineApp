@@ -74,16 +74,26 @@ fun StrengthRecordOverlay(
     var editing by remember { mutableStateOf<StrengthRecordEntity?>(null) }
     var viewMode by remember { mutableStateOf("TODAY") }
     var selectedGroup by remember { mutableStateOf("BACK") }
+    var selectedExerciseGroup by remember { mutableStateOf("ALL") }
     var selectedExercise by remember { mutableStateOf("") }
     val routineRecords = records.filter { it.routineId == routine.id }
     val recordIds = routineRecords.map { it.id }.toSet()
     val routineSets = strengthSets.filter { it.recordId in recordIds }
-    val exerciseNames = routineRecords.map { it.exerciseName }.distinct().sorted()
+    val exerciseGroups = routineRecords.map { it.muscleGroup }.distinct()
+        .sortedBy { MUSCLE_GROUPS.indexOf(it).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }
+    val exerciseNames = routineRecords
+        .filter { selectedExerciseGroup == "ALL" || it.muscleGroup == selectedExerciseGroup }
+        .map { it.exerciseName }
+        .distinct()
+        .sorted()
     val activeExercise = selectedExercise.takeIf { it in exerciseNames } ?: exerciseNames.firstOrNull().orEmpty()
     val todayText = LocalDate.now().toString()
     val visibleRecords = when (viewMode) {
         "GROUP" -> routineRecords.filter { it.muscleGroup == selectedGroup }
-        "EXERCISE" -> routineRecords.filter { it.exerciseName == activeExercise }
+        "EXERCISE" -> routineRecords.filter {
+            it.exerciseName == activeExercise &&
+                (selectedExerciseGroup == "ALL" || it.muscleGroup == selectedExerciseGroup)
+        }
         else -> routineRecords.filter { it.performedDate == todayText }
     }
     val todayRecords = routineRecords.filter { it.performedDate == todayText }
@@ -154,6 +164,20 @@ fun StrengthRecordOverlay(
                         }
                     }
                 }
+                if (viewMode == "EXERCISE" && exerciseGroups.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("ALL") + exerciseGroups, key = { "exercise-group-$it" }) { group ->
+                            FilterChip(
+                                selected = selectedExerciseGroup == group,
+                                onClick = {
+                                    selectedExerciseGroup = group
+                                    selectedExercise = ""
+                                },
+                                label = { Text(if (group == "ALL") "전체 부위" else muscleGroupLabel(group)) }
+                            )
+                        }
+                    }
+                }
                 if (viewMode == "EXERCISE" && exerciseNames.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(exerciseNames, key = { it }) { exercise ->
@@ -175,7 +199,11 @@ fun StrengthRecordOverlay(
                 Text(
                     when (viewMode) {
                         "GROUP" -> "${muscleGroupLabel(selectedGroup)} 기록"
-                        "EXERCISE" -> if (activeExercise.isBlank()) "운동별 기록" else "$activeExercise 기록"
+                        "EXERCISE" -> if (activeExercise.isBlank()) {
+                            "운동별 기록"
+                        } else {
+                            "${if (selectedExerciseGroup == "ALL") "" else "${muscleGroupLabel(selectedExerciseGroup)} · "}$activeExercise 기록"
+                        }
                         else -> "오늘 한 운동"
                     },
                     style = MaterialTheme.typography.titleLarge,

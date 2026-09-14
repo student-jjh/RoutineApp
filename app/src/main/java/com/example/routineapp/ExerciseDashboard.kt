@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -28,6 +30,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -58,6 +61,11 @@ data class CardioWorkout(
     val startTime: Instant,
     val durationSeconds: Long,
     val distanceMeters: Double,
+    val averageHeartRate: Double?,
+    val maxHeartRate: Long?,
+    val averageCadence: Double?,
+    val elevationMeters: Double?,
+    val caloriesKcal: Double?,
     val sourcePackage: String
 ) {
     val distanceKm: Double get() = distanceMeters / 1_000.0
@@ -88,12 +96,14 @@ fun ExerciseDashboard(
     strengthRoutines: List<RoutineEntity>,
     hasExercisePermission: Boolean,
     hasDistancePermission: Boolean,
+    missingAdvancedMetrics: List<String>,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onRequestPermission: () -> Unit,
     onOpenStrengthLog: (RoutineEntity) -> Unit
 ) {
     var filter by remember { mutableStateOf("ALL") }
+    var expandedWorkoutId by remember { mutableStateOf<String?>(null) }
     val visibleWorkouts = cardioWorkouts.filter { workoutMatchesFilter(it, filter) }
     val runningWorkouts = cardioWorkouts.filter { workoutMatchesFilter(it, "RUNNING") }
 
@@ -130,6 +140,10 @@ fun ExerciseDashboard(
                 item {
                     MissingDistancePermissionCard(onRequestPermission)
                 }
+            } else if (missingAdvancedMetrics.isNotEmpty()) {
+                item {
+                    MissingAdvancedMetricsPermissionCard(missingAdvancedMetrics, onRequestPermission)
+                }
             } else if (visibleWorkouts.isEmpty()) {
                 item {
                     EmptyExerciseCard(
@@ -140,7 +154,7 @@ fun ExerciseDashboard(
             }
 
             if ((filter == "ALL" || filter == "RUNNING") && runningWorkouts.isNotEmpty()) {
-                item { RunningPaceChart(runningWorkouts) }
+                item { RunningTrendChart(runningWorkouts) }
             }
 
             if (visibleWorkouts.isNotEmpty()) {
@@ -156,7 +170,13 @@ fun ExerciseDashboard(
                     }
                 }
                 items(visibleWorkouts, key = { it.id }) { workout ->
-                    CardioWorkoutCard(workout)
+                    CardioWorkoutCard(
+                        workout = workout,
+                        expanded = expandedWorkoutId == workout.id,
+                        onClick = {
+                            expandedWorkoutId = if (expandedWorkoutId == workout.id) null else workout.id
+                        }
+                    )
                 }
             }
 
@@ -237,8 +257,14 @@ private fun SummaryMetric(label: String, value: String) {
 }
 
 @Composable
-private fun RunningPaceChart(workouts: List<CardioWorkout>) {
-    val points = workouts.filter { it.paceSecondsPerKm != null }
+private fun RunningTrendChart(workouts: List<CardioWorkout>) {
+    var selectedMetric by remember { mutableStateOf("PACE") }
+    val availableMetrics = buildList {
+        add("PACE")
+        if (workouts.any { it.averageHeartRate != null }) add("HEART_RATE")
+        if (workouts.any { it.averageCadence != null }) add("CADENCE")
+    }
+    val points = workouts.filter { trendValue(it, selectedMetric) != null }
         .take(8)
         .reversed()
     val lineColor = Color(0xFF347A52)
@@ -254,23 +280,36 @@ private fun RunningPaceChart(workouts: List<CardioWorkout>) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("러닝 페이스", style = MaterialTheme.typography.titleLarge)
+                    Text("러닝 변화", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "최근 러닝 기준 · 낮을수록 빨라요",
+                        trendDescription(selectedMetric),
                         style = MaterialTheme.typography.bodySmall,
                         color = labelColor
                     )
                 }
-                points.lastOrNull()?.paceSecondsPerKm?.let {
-                    Text(formatPace(it), style = MaterialTheme.typography.titleMedium, color = lineColor)
+                points.lastOrNull()?.let {
+                    Text(formatTrendValue(it, selectedMetric), style = MaterialTheme.typography.titleMedium, color = lineColor)
+                }
+            }
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 10.dp)
+            ) {
+                items(availableMetrics) { metric ->
+                    FilterChip(
+                        selected = selectedMetric == metric,
+                        onClick = { selectedMetric = metric },
+                        label = { Text(trendMetricLabel(metric)) }
+                    )
                 }
             }
 
             if (points.size >= 2) {
-                val values = points.mapNotNull { it.paceSecondsPerKm }
+                val values = points.mapNotNull { trendValue(it, selectedMetric) }
                 val min = values.minOrNull() ?: 0.0
                 val max = values.maxOrNull() ?: 1.0
-                val range = (max - min).coerceAtLeast(30.0)
+                val range = (max - min).coerceAtLeast(if (selectedMetric == "PACE") 30.0 else 5.0)
                 Canvas(
                     modifier = Modifier.fillMaxWidth().height(150.dp).padding(top = 18.dp)
                 ) {
@@ -281,15 +320,19 @@ private fun RunningPaceChart(workouts: List<CardioWorkout>) {
                     val path = Path()
                     points.forEachIndexed { index, workout ->
                         val x = if (points.size == 1) size.width / 2 else size.width * index / (points.size - 1)
-                        val pace = workout.paceSecondsPerKm ?: max
-                        val y = ((pace - min) / range).toFloat() * size.height * 0.78f + size.height * 0.1f
+                        val value = trendValue(workout, selectedMetric) ?: max
+                        val normalized = ((value - min) / range).toFloat()
+                        val yRatio = if (selectedMetric == "PACE") normalized else 1f - normalized
+                        val y = yRatio * size.height * 0.78f + size.height * 0.1f
                         if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
                     }
                     drawPath(path, lineColor, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
                     points.forEachIndexed { index, workout ->
                         val x = size.width * index / (points.size - 1)
-                        val pace = workout.paceSecondsPerKm ?: max
-                        val y = ((pace - min) / range).toFloat() * size.height * 0.78f + size.height * 0.1f
+                        val value = trendValue(workout, selectedMetric) ?: max
+                        val normalized = ((value - min) / range).toFloat()
+                        val yRatio = if (selectedMetric == "PACE") normalized else 1f - normalized
+                        val y = yRatio * size.height * 0.78f + size.height * 0.1f
                         drawCircle(Color(0xFFC9F27A), 6.dp.toPx(), Offset(x, y))
                         drawCircle(lineColor, 6.dp.toPx(), Offset(x, y), style = Stroke(2.dp.toPx()))
                     }
@@ -313,7 +356,7 @@ private fun RunningPaceChart(workouts: List<CardioWorkout>) {
                 }
             } else {
                 Text(
-                    "거리 정보가 있는 러닝이 2개 이상이면 변화 그래프가 표시돼요.",
+                    "선택한 지표가 기록된 러닝이 2개 이상이면 변화가 표시돼요.",
                     style = MaterialTheme.typography.bodySmall,
                     color = labelColor,
                     modifier = Modifier.padding(top = 16.dp)
@@ -324,14 +367,16 @@ private fun RunningPaceChart(workouts: List<CardioWorkout>) {
 }
 
 @Composable
-private fun CardioWorkoutCard(workout: CardioWorkout) {
+private fun CardioWorkoutCard(workout: CardioWorkout, expanded: Boolean, onClick: () -> Unit) {
     val dateTime = workout.startTime.atZone(ZoneId.systemDefault())
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Row(modifier = Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.padding(15.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.secondaryContainer,
@@ -363,6 +408,51 @@ private fun CardioWorkoutCard(workout: CardioWorkout) {
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "운동 지표 접기" else "운동 지표 펼치기",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp).size(20.dp)
+            )
+        }
+        if (expanded) {
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 14.dp, bottom = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailMetric("시간", formatDuration(workout.durationSeconds), Modifier.weight(1f))
+                DetailMetric("거리", workout.distanceKm.takeIf { it > 0.05 }?.let { String.format("%.2f km", it) } ?: "—", Modifier.weight(1f))
+                DetailMetric(
+                    if (workoutMatchesFilter(workout, "CYCLING")) "평균 속도" else "평균 페이스",
+                    workoutSpeedOrPace(workout),
+                    Modifier.weight(1f)
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailMetric("평균 심박", workout.averageHeartRate?.let { "${it.toInt()} bpm" } ?: "—", Modifier.weight(1f))
+                DetailMetric("최대 심박", workout.maxHeartRate?.let { "$it bpm" } ?: "—", Modifier.weight(1f))
+                DetailMetric("케이던스", workout.averageCadence?.let { "${it.toInt()} spm" } ?: "—", Modifier.weight(1f))
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailMetric("고도 상승", workout.elevationMeters?.let { String.format("%.0f m", it) } ?: "—", Modifier.weight(1f))
+                DetailMetric("칼로리 · 참고", workout.caloriesKcal?.let { String.format("%.0f kcal", it) } ?: "—", Modifier.weight(2f))
+            }
+        }
+        }
+    }
+}
+
+@Composable
+private fun DetailMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 2.dp))
         }
     }
 }
@@ -450,6 +540,26 @@ private fun MissingDistancePermissionCard(onRequestPermission: () -> Unit) {
     }
 }
 
+@Composable
+private fun MissingAdvancedMetricsPermissionCard(
+    missingMetrics: List<String>,
+    onRequestPermission: () -> Unit
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onRequestPermission)
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("${missingMetrics.joinToString(" · ")} 권한이 필요해요", style = MaterialTheme.typography.titleSmall)
+                Text("눌러서 Health Connect 접근 권한을 관리하세요", style = MaterialTheme.typography.bodySmall)
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = "추가 운동 지표 권한 허용")
+        }
+    }
+}
+
 private fun workoutMatchesFilter(workout: CardioWorkout, filter: String): Boolean = when (filter) {
     "RUNNING" -> workout.exerciseType == ExerciseSessionRecord.EXERCISE_TYPE_RUNNING ||
         workout.exerciseType == ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL
@@ -503,6 +613,38 @@ private fun workoutDetailMetric(workout: CardioWorkout): String = when {
         workout.paceSecondsPerKm != null -> workout.paceSecondsPerKm?.let(::formatPace) ?: "—"
     workout.distanceKm > 0.05 -> formatDuration(workout.durationSeconds)
     else -> "거리 정보 없음"
+}
+
+private fun workoutSpeedOrPace(workout: CardioWorkout): String = when {
+    workoutMatchesFilter(workout, "CYCLING") && workout.distanceKm > 0.05 && workout.durationSeconds > 0 -> {
+        String.format("%.1f km/h", workout.distanceKm / (workout.durationSeconds / 3_600.0))
+    }
+    workout.paceSecondsPerKm != null -> workout.paceSecondsPerKm?.let(::formatPace) ?: "—"
+    else -> "—"
+}
+
+private fun trendValue(workout: CardioWorkout, metric: String): Double? = when (metric) {
+    "HEART_RATE" -> workout.averageHeartRate
+    "CADENCE" -> workout.averageCadence
+    else -> workout.paceSecondsPerKm
+}
+
+private fun trendMetricLabel(metric: String): String = when (metric) {
+    "HEART_RATE" -> "평균 심박"
+    "CADENCE" -> "케이던스"
+    else -> "페이스"
+}
+
+private fun trendDescription(metric: String): String = when (metric) {
+    "HEART_RATE" -> "같은 운동에서 강도 변화를 비교해요"
+    "CADENCE" -> "분당 발걸음으로 러닝 리듬을 봐요"
+    else -> "최근 러닝 기준 · 낮을수록 빨라요"
+}
+
+private fun formatTrendValue(workout: CardioWorkout, metric: String): String = when (metric) {
+    "HEART_RATE" -> workout.averageHeartRate?.let { "${it.toInt()} bpm" } ?: "—"
+    "CADENCE" -> workout.averageCadence?.let { "${it.toInt()} spm" } ?: "—"
+    else -> workout.paceSecondsPerKm?.let(::formatPace) ?: "—"
 }
 
 private fun formatDuration(totalSeconds: Long): String {

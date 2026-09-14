@@ -53,7 +53,8 @@ import java.time.YearMonth
 fun CalendarDashboard(
     routines: List<RoutineEntity>,
     completions: List<RoutineCompletionEntity>,
-    installedOn: LocalDate
+    installedOn: LocalDate,
+    onToggleCompletion: (RoutineEntity, LocalDate, Boolean) -> Unit
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -66,7 +67,7 @@ fun CalendarDashboard(
         val scheduledDates = if (trackingStart <= periodEnd) {
             generateSequence(trackingStart) { date ->
                 date.plusDays(1).takeIf { it <= periodEnd }
-            }.filter { it.dayOfWeek.name in routine.activeDays.split(",") }.toList()
+            }.filter { routine.isScheduledOn(it, installedOn) }.toList()
         } else {
             emptyList()
         }
@@ -167,7 +168,9 @@ fun CalendarDashboard(
             DayRoutineHistory(
                 date = selectedDate,
                 routines = routines,
-                completions = completions
+                completions = completions,
+                installedOn = installedOn,
+                onToggleCompletion = onToggleCompletion
             )
         }
 
@@ -291,9 +294,7 @@ private fun MonthCalendar(
                         if (date == null) {
                             Spacer(Modifier.weight(1f).aspectRatio(0.9f))
                         } else {
-                            val scheduled = routines.filter {
-                                date.dayOfWeek.name in it.activeDays.split(",")
-                            }
+                            val scheduled = routines.filter { it.isScheduledOn(date, installedOn) }
                             val completed = scheduled.count {
                                 (it.id to date.toString()) in completionKeys
                             }
@@ -410,9 +411,11 @@ private fun DateHistoryNavigator(
 private fun DayRoutineHistory(
     date: LocalDate,
     routines: List<RoutineEntity>,
-    completions: List<RoutineCompletionEntity>
+    completions: List<RoutineCompletionEntity>,
+    installedOn: LocalDate,
+    onToggleCompletion: (RoutineEntity, LocalDate, Boolean) -> Unit
 ) {
-    val scheduled = routines.filter { date.dayOfWeek.name in it.activeDays.split(",") }
+    val scheduled = routines.filter { it.isScheduledOn(date, installedOn) }
     val completionByRoutine = completions
         .filter { it.date == date.toString() }
         .associateBy { it.routineId }
@@ -427,9 +430,13 @@ private fun DayRoutineHistory(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("그날의 루틴", style = MaterialTheme.typography.titleLarge)
+                    Text("루틴 기록", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        if (scheduled.isEmpty()) "예정된 루틴이 없어요" else "$completedCount / ${scheduled.size}개 완료",
+                        if (scheduled.isEmpty()) {
+                            "예정된 루틴이 없어요"
+                        } else {
+                            "$completedCount / ${scheduled.size}개 완료 · 눌러서 수정"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -446,7 +453,10 @@ private fun DayRoutineHistory(
             scheduled.forEach { routine ->
                 val completion = completionByRoutine[routine.id]
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleCompletion(routine, date, completion != null) }
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -465,13 +475,6 @@ private fun DayRoutineHistory(
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (completion?.source in setOf("HEALTH_CONNECT", "STRENGTH_LOG")) {
-                        Text(
-                            "자동",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.secondary
                         )
                     }
                 }

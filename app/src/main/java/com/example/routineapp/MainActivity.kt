@@ -86,6 +86,10 @@ import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ElevationGainedRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.StepsCadenceRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.example.routineapp.ui.theme.RoutineAppTheme
@@ -172,16 +176,44 @@ private fun RoutineScreen(
     val distanceReadPermission = remember {
         HealthPermission.getReadPermission(DistanceRecord::class)
     }
+    val heartRateReadPermission = remember {
+        HealthPermission.getReadPermission(HeartRateRecord::class)
+    }
+    val cadenceReadPermission = remember {
+        HealthPermission.getReadPermission(StepsCadenceRecord::class)
+    }
+    val elevationReadPermission = remember {
+        HealthPermission.getReadPermission(ElevationGainedRecord::class)
+    }
+    val caloriesReadPermission = remember {
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
+    }
     val healthPermissions: Set<String> = remember {
         setOf(
             exerciseReadPermission,
-            distanceReadPermission
+            distanceReadPermission,
+            heartRateReadPermission,
+            cadenceReadPermission,
+            elevationReadPermission,
+            caloriesReadPermission
         )
     }
     var hasExercisePermission by remember { mutableStateOf(false) }
     var hasDistancePermission by remember { mutableStateOf(false) }
-    val hasHealthPermission = hasExercisePermission && hasDistancePermission
-    var todayWorkoutCount by remember { mutableStateOf(0) }
+    var hasHeartRatePermission by remember { mutableStateOf(false) }
+    var hasCadencePermission by remember { mutableStateOf(false) }
+    var hasElevationPermission by remember { mutableStateOf(false) }
+    var hasCaloriesPermission by remember { mutableStateOf(false) }
+    val hasHealthPermission = healthPermissions.all {
+        when (it) {
+            exerciseReadPermission -> hasExercisePermission
+            distanceReadPermission -> hasDistancePermission
+            heartRateReadPermission -> hasHeartRatePermission
+            cadenceReadPermission -> hasCadencePermission
+            elevationReadPermission -> hasElevationPermission
+            else -> hasCaloriesPermission
+        }
+    }
     var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
     var cardioWorkouts by remember { mutableStateOf<List<CardioWorkout>>(emptyList()) }
     var healthConnectMessage by remember { mutableStateOf<String?>(null) }
@@ -192,6 +224,10 @@ private fun RoutineScreen(
     ) { grantedPermissions ->
         hasExercisePermission = exerciseReadPermission in grantedPermissions
         hasDistancePermission = distanceReadPermission in grantedPermissions
+        hasHeartRatePermission = heartRateReadPermission in grantedPermissions
+        hasCadencePermission = cadenceReadPermission in grantedPermissions
+        hasElevationPermission = elevationReadPermission in grantedPermissions
+        hasCaloriesPermission = caloriesReadPermission in grantedPermissions
     }
 
     LaunchedEffect(dao) {
@@ -229,15 +265,28 @@ private fun RoutineScreen(
         }
     }
 
-    LaunchedEffect(healthConnectClient) {
+    LaunchedEffect(healthConnectClient, healthRefreshVersion) {
         if (healthConnectClient != null) {
             val granted = healthConnectClient.permissionController.getGrantedPermissions()
             hasExercisePermission = exerciseReadPermission in granted
             hasDistancePermission = distanceReadPermission in granted
+            hasHeartRatePermission = heartRateReadPermission in granted
+            hasCadencePermission = cadenceReadPermission in granted
+            hasElevationPermission = elevationReadPermission in granted
+            hasCaloriesPermission = caloriesReadPermission in granted
         }
     }
 
-    LaunchedEffect(healthConnectClient, hasExercisePermission, hasDistancePermission, healthRefreshVersion) {
+    LaunchedEffect(
+        healthConnectClient,
+        hasExercisePermission,
+        hasDistancePermission,
+        hasHeartRatePermission,
+        hasCadencePermission,
+        hasElevationPermission,
+        hasCaloriesPermission,
+        healthRefreshVersion
+    ) {
         if (healthConnectClient != null && hasExercisePermission) {
             val zone = ZoneId.systemDefault()
             val today = LocalDate.now(zone)
@@ -269,6 +318,44 @@ private fun RoutineScreen(
                         } else {
                             0.0
                         }
+                        val recordFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+                        val originFilter = setOf(session.metadata.dataOrigin)
+                        val heartRates = if (hasHeartRatePermission) {
+                            healthConnectClient.readRecords(
+                                ReadRecordsRequest<HeartRateRecord>(
+                                    recordType = HeartRateRecord::class,
+                                    timeRangeFilter = recordFilter,
+                                    dataOriginFilter = originFilter
+                                )
+                            ).records.flatMap { it.samples }.map { it.beatsPerMinute }
+                        } else emptyList()
+                        val cadenceRates = if (hasCadencePermission) {
+                            healthConnectClient.readRecords(
+                                ReadRecordsRequest<StepsCadenceRecord>(
+                                    recordType = StepsCadenceRecord::class,
+                                    timeRangeFilter = recordFilter,
+                                    dataOriginFilter = originFilter
+                                )
+                            ).records.flatMap { it.samples }.map { it.rate }
+                        } else emptyList()
+                        val elevationMeters = if (hasElevationPermission) {
+                            healthConnectClient.readRecords(
+                                ReadRecordsRequest<ElevationGainedRecord>(
+                                    recordType = ElevationGainedRecord::class,
+                                    timeRangeFilter = recordFilter,
+                                    dataOriginFilter = originFilter
+                                )
+                            ).records.sumOf { it.elevation.inMeters }
+                        } else null
+                        val caloriesKcal = if (hasCaloriesPermission) {
+                            healthConnectClient.readRecords(
+                                ReadRecordsRequest<TotalCaloriesBurnedRecord>(
+                                    recordType = TotalCaloriesBurnedRecord::class,
+                                    timeRangeFilter = recordFilter,
+                                    dataOriginFilter = originFilter
+                                )
+                            ).records.sumOf { it.energy.inKilocalories }
+                        } else null
                         CardioWorkout(
                             id = session.metadata.id,
                             exerciseType = session.exerciseType,
@@ -278,6 +365,11 @@ private fun RoutineScreen(
                                 session.endTime
                             ).seconds.coerceAtLeast(0),
                             distanceMeters = distanceMeters,
+                            averageHeartRate = heartRates.takeIf { it.isNotEmpty() }?.average(),
+                            maxHeartRate = heartRates.maxOrNull(),
+                            averageCadence = cadenceRates.takeIf { it.isNotEmpty() }?.average(),
+                            elevationMeters = elevationMeters?.takeIf { it != 0.0 },
+                            caloriesKcal = caloriesKcal?.takeIf { it > 0.0 },
                             sourcePackage = session.metadata.dataOrigin.packageName
                         )
                     }
@@ -290,7 +382,6 @@ private fun RoutineScreen(
                 todayWorkouts = monthWorkouts.filter {
                     it.startTime >= todayStart && it.startTime < tomorrowStart
                 }
-                todayWorkoutCount = todayWorkouts.size
                 cardioWorkouts = loadedCardioWorkouts
                 healthConnectMessage = if (todayWorkouts.isEmpty()) {
                     "Health Connect에 오늘 운동 세션이 아직 없습니다."
@@ -497,7 +588,14 @@ private fun RoutineScreen(
                     when {
                         healthConnectAvailable && healthConnectClient != null -> {
                             runCatching {
-                                permissionLauncher.launch(healthPermissions)
+                                if (hasExercisePermission && hasDistancePermission) {
+                                    context.startActivity(
+                                        Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
+                                            .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+                                    )
+                                } else {
+                                    permissionLauncher.launch(healthPermissions)
+                                }
                             }.onSuccess {
                                 healthConnectMessage = "Health Connect 권한 화면을 여는 중입니다."
                             }.onFailure {
@@ -525,6 +623,7 @@ private fun RoutineScreen(
                     when {
                         hasHealthPermission -> "Health Connect 연결됨"
                         needsHealthConnectUpdate -> "Health Connect 업데이트"
+                        hasExercisePermission && hasDistancePermission -> "Health Connect 권한 관리"
                         healthConnectAvailable -> "운동 데이터 연결"
                         else -> "Health Connect 설치"
                     }
@@ -532,7 +631,11 @@ private fun RoutineScreen(
             }
             if (!hasHealthPermission && healthConnectAvailable) {
                 Text(
-                    "자동 체크와 유산소 통계를 위해 운동·거리 권한을 허용해주세요.",
+                    if (hasExercisePermission && hasDistancePermission) {
+                        "유산소 세부 지표에 필요한 권한을 확인해주세요."
+                    } else {
+                        "자동 체크와 유산소 통계를 위해 운동·거리 권한을 허용해주세요."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -589,7 +692,7 @@ private fun RoutineScreen(
                                 ),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                             ) {
-                                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+                                Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp)) {
                                     Text(
                                         if (todayRoutines.isEmpty()) "가볍게 하루를 시작해볼까요?" else "오늘의 루틴",
                                         style = MaterialTheme.typography.labelLarge,
@@ -598,7 +701,7 @@ private fun RoutineScreen(
                                     Row(verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
                                         Text(
                                             "${(progress * 100).toInt()}",
-                                            style = MaterialTheme.typography.displaySmall,
+                                            style = MaterialTheme.typography.headlineLarge,
                                             color = Color.White
                                         )
                                         Text(
@@ -616,22 +719,10 @@ private fun RoutineScreen(
                                     }
                                     LinearProgressIndicator(
                                         progress = { progress },
-                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(6.dp),
                                         color = Color(0xFFC9F27A),
                                         trackColor = Color.White.copy(alpha = 0.16f)
                                     )
-                                    if (hasExercisePermission) {
-                                        Text(
-                                            if (todayWorkoutCount > 0) {
-                                                "운동 ${todayWorkoutCount}개를 자동으로 확인했어요"
-                                            } else {
-                                                "아래로 당겨 운동 데이터를 확인하세요"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.72f),
-                                            modifier = Modifier.padding(top = 10.dp)
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -755,6 +846,12 @@ private fun RoutineScreen(
                     },
                     hasExercisePermission = hasExercisePermission,
                     hasDistancePermission = hasDistancePermission,
+                    missingAdvancedMetrics = buildList {
+                        if (!hasHeartRatePermission) add("심박")
+                        if (!hasCadencePermission) add("케이던스")
+                        if (!hasElevationPermission) add("고도")
+                        if (!hasCaloriesPermission) add("칼로리")
+                    },
                     isRefreshing = isHealthRefreshing,
                     onRefresh = {
                         if (hasExercisePermission) {
@@ -764,7 +861,18 @@ private fun RoutineScreen(
                     },
                     onRequestPermission = {
                         if (healthConnectAvailable) {
-                            permissionLauncher.launch(healthPermissions)
+                            if (hasExercisePermission && hasDistancePermission) {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
+                                            .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+                                    )
+                                }.onFailure {
+                                    context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+                                }
+                            } else {
+                                permissionLauncher.launch(healthPermissions)
+                            }
                         }
                     },
                     onOpenStrengthLog = { routine -> recordingRoutine = routine }
@@ -773,7 +881,18 @@ private fun RoutineScreen(
                 CalendarDashboard(
                     routines = routines,
                     completions = completions,
-                    installedOn = installedOn
+                    installedOn = installedOn,
+                    onToggleCompletion = { routine, date, isCompleted ->
+                        scope.launch {
+                            if (isCompleted) {
+                                completionDao.uncomplete(routine.id, date.toString())
+                            } else {
+                                completionDao.complete(
+                                    RoutineCompletionEntity(routine.id, date.toString())
+                                )
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -1233,10 +1352,11 @@ private fun calculateAchievementStreak(
     var date = LocalDate.now()
     var streak = 0
     while (!date.isBefore(installedOn)) {
-        val scheduled = routines.filter { date.dayOfWeek.name in it.activeDays.split(",") }
+        val scheduled = routines.filter { it.isScheduledOn(date, installedOn) }
         if (scheduled.isNotEmpty()) {
-            val allCompleted = scheduled.all { (it.id to date.toString()) in completionKeys }
-            if (!allCompleted) break
+            val completed = scheduled.count { (it.id to date.toString()) in completionKeys }
+            val reachedDailyGoal = reachedRoutineGoal(completed, scheduled.size)
+            if (!reachedDailyGoal) break
             streak++
         }
         date = date.minusDays(1)

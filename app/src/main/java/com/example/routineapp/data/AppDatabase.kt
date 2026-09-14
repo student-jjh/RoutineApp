@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         StrengthSetEntity::class,
         CustomExerciseEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,7 +40,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
-                    MIGRATION_7_8
+                    MIGRATION_7_8,
+                    MIGRATION_8_9
                 )
                     .build()
                     .also { instance = it }
@@ -180,6 +181,14 @@ abstract class AppDatabase : RoomDatabase() {
                 )
                 database.execSQL("DROP TABLE strength_sets")
                 database.execSQL("ALTER TABLE strength_sets_new RENAME TO strength_sets")
+            }
+        }
+
+        private val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE routines ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0"
+                )
             }
         }
     }
