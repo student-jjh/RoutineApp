@@ -282,6 +282,34 @@ private fun RoutineScreen(
         }
     }
 
+    LaunchedEffect(strengthRecords.toList(), routines.toList()) {
+        val today = LocalDate.now().toString()
+        routines.filter {
+            it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
+        }.forEach { routine ->
+            val hasTodayRecord = strengthRecords.any {
+                it.routineId == routine.id && it.performedDate == today
+            }
+            val completion = completions.firstOrNull {
+                it.routineId == routine.id && it.date == today
+            }
+            when {
+                hasTodayRecord && completion == null -> {
+                    completionDao.completeIfAbsent(
+                        RoutineCompletionEntity(
+                            routineId = routine.id,
+                            date = today,
+                            source = "STRENGTH_LOG"
+                        )
+                    )
+                }
+                !hasTodayRecord && completion?.source == "STRENGTH_LOG" -> {
+                    completionDao.uncomplete(routine.id, today)
+                }
+            }
+        }
+    }
+
     val achievementStreak = calculateAchievementStreak(
         routines = routines.toList(),
         completions = completions.toList(),
@@ -671,7 +699,8 @@ private fun RoutineScreen(
                     monthWorkoutCount = monthWorkoutCount,
                     monthWorkoutMinutes = monthWorkoutMinutes,
                     hasHealthPermission = hasHealthPermission,
-                    installedOn = installedOn
+                    installedOn = installedOn,
+                    onOpenStrengthLog = { routine -> recordingRoutine = routine }
                 )
             }
         }

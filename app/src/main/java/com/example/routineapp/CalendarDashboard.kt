@@ -58,7 +58,8 @@ fun CalendarDashboard(
     monthWorkoutCount: Int,
     monthWorkoutMinutes: Long,
     hasHealthPermission: Boolean,
-    installedOn: LocalDate
+    installedOn: LocalDate,
+    onOpenStrengthLog: (RoutineEntity) -> Unit
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -82,6 +83,9 @@ fun CalendarDashboard(
         val completed = scheduledDates.count { it.toString() in completedDates }
         val rate = if (scheduledDates.isEmpty()) 0 else completed * 100 / scheduledDates.size
         RoutineRate(routine, completed, scheduledDates.size, rate)
+    }
+    val strengthRoutines = routines.filter {
+        it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
     }
 
     LazyColumn(
@@ -215,6 +219,53 @@ fun CalendarDashboard(
                                 color = Color.White
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        if (strengthRoutines.isNotEmpty()) {
+            item {
+                Text("운동 로그", style = MaterialTheme.typography.titleLarge)
+            }
+            items(strengthRoutines, key = { "strength-${it.id}" }) { routine ->
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenStrengthLog(routine) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.FitnessCenter,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(11.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(routine.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "종목별 기록과 변화 확인",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = "근력 운동 로그 열기",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -516,7 +567,7 @@ private fun DayRoutineHistory(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (completion?.source == "HEALTH_CONNECT") {
+                    if (completion?.source in setOf("HEALTH_CONNECT", "STRENGTH_LOG")) {
                         Text(
                             "자동",
                             style = MaterialTheme.typography.labelMedium,

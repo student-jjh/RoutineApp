@@ -14,6 +14,9 @@ interface RoutineCompletionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun complete(completion: RoutineCompletionEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun completeIfAbsent(completion: RoutineCompletionEntity): Long
+
     @Query("DELETE FROM routine_completions WHERE routineId = :routineId AND date = :date")
     suspend fun uncomplete(routineId: Long, date: String)
 
