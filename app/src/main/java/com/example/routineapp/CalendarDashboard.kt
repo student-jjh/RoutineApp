@@ -2,6 +2,7 @@ package com.example.routineapp
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,6 +57,7 @@ fun CalendarDashboard(
     installedOn: LocalDate
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
+    var showRoutineRates by remember { mutableStateOf(false) }
     val today = LocalDate.now()
     val monthEnd = selectedMonth.atEndOfMonth()
     val periodEnd = if (selectedMonth == YearMonth.from(today)) today else monthEnd
@@ -165,16 +169,38 @@ fun CalendarDashboard(
         }
 
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("루틴별 달성률", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.weight(1f))
-                Text("설치 이후", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showRoutineRates = !showRoutineRates }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("루틴별 달성률", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "${routineRates.size}개 루틴",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        imageVector = if (showRoutineRates) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (showRoutineRates) "달성률 접기" else "달성률 펼치기",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
-        if (routineRates.isEmpty()) {
+        if (showRoutineRates && routineRates.isEmpty()) {
             item { Text("등록된 루틴이 없습니다.") }
-        } else {
+        } else if (showRoutineRates) {
             items(routineRates, key = { it.routine.id }) { item ->
                 Card(
                     shape = MaterialTheme.shapes.medium,
