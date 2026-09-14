@@ -16,14 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Today
@@ -55,11 +53,7 @@ import java.time.YearMonth
 fun CalendarDashboard(
     routines: List<RoutineEntity>,
     completions: List<RoutineCompletionEntity>,
-    monthWorkoutCount: Int,
-    monthWorkoutMinutes: Long,
-    hasHealthPermission: Boolean,
-    installedOn: LocalDate,
-    onOpenStrengthLog: (RoutineEntity) -> Unit
+    installedOn: LocalDate
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -83,9 +77,6 @@ fun CalendarDashboard(
         val completed = scheduledDates.count { it.toString() in completedDates }
         val rate = if (scheduledDates.isEmpty()) 0 else completed * 100 / scheduledDates.size
         RoutineRate(routine, completed, scheduledDates.size, rate)
-    }
-    val strengthRoutines = routines.filter {
-        it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
     }
 
     LazyColumn(
@@ -178,97 +169,6 @@ fun CalendarDashboard(
                 routines = routines,
                 completions = completions
             )
-        }
-
-        if (selectedMonth == YearMonth.from(today)) {
-            item {
-                Card(
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFFC9F27A),
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.FitnessCenter,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(10.dp)
-                            )
-                        }
-                        Column(modifier = Modifier.padding(start = 14.dp)) {
-                            Text("이번 달 운동", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.7f))
-                            Text(
-                                if (hasHealthPermission) {
-                                    "${monthWorkoutCount}회 · 총 ${formatMinutes(monthWorkoutMinutes)}"
-                                } else {
-                                    "Health Connect를 연결하면 운동 통계를 볼 수 있어요"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (strengthRoutines.isNotEmpty()) {
-            item {
-                Text("운동 로그", style = MaterialTheme.typography.titleLarge)
-            }
-            items(strengthRoutines, key = { "strength-${it.id}" }) { routine ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenStrengthLog(routine) }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.FitnessCenter,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(11.dp)
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(routine.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "종목별 기록과 변화 확인",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = "근력 운동 로그 열기",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
         }
 
         item {
@@ -606,11 +506,6 @@ private fun achievementColor(rate: Int): Color = when {
     rate >= 50 -> Color(0xFF72A982)
     rate >= 25 -> Color(0xFFB8D5BC)
     else -> Color(0xFFE7EFE5)
-}
-
-private fun formatMinutes(minutes: Long): String = when {
-    minutes >= 60 -> "${minutes / 60}시간 ${minutes % 60}분"
-    else -> "${minutes}분"
 }
 
 private data class RoutineRate(

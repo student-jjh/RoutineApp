@@ -19,8 +19,8 @@ class PermissionsRationaleActivity : ComponentActivity() {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text("운동 데이터 사용 안내", style = MaterialTheme.typography.headlineSmall)
                     Text(
-                        "RoutineApp은 운동 루틴 자동 체크를 위해 Health Connect의 운동 세션 데이터만 읽습니다. " +
-                            "운동 데이터는 루틴 완료 여부를 판단하는 데 사용되며 다른 목적으로 전송하지 않습니다.",
+                        "루티브는 운동 루틴 자동 체크와 유산소 통계를 위해 Health Connect의 운동 세션과 거리 데이터를 읽습니다. " +
+                            "데이터는 거리, 운동 시간과 페이스를 분석하는 데 사용되며 외부로 전송하지 않습니다.",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(top = 16.dp)
                     )

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -84,6 +85,7 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.example.routineapp.ui.theme.RoutineAppTheme
@@ -164,21 +166,32 @@ private fun RoutineScreen(
     val healthConnectClient = remember(context, healthConnectAvailable) {
         if (healthConnectAvailable) HealthConnectClient.getOrCreate(context) else null
     }
-    val healthPermissions: Set<String> = remember {
-        setOf(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
+    val exerciseReadPermission = remember {
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class)
     }
-    var hasHealthPermission by remember { mutableStateOf(false) }
+    val distanceReadPermission = remember {
+        HealthPermission.getReadPermission(DistanceRecord::class)
+    }
+    val healthPermissions: Set<String> = remember {
+        setOf(
+            exerciseReadPermission,
+            distanceReadPermission
+        )
+    }
+    var hasExercisePermission by remember { mutableStateOf(false) }
+    var hasDistancePermission by remember { mutableStateOf(false) }
+    val hasHealthPermission = hasExercisePermission && hasDistancePermission
     var todayWorkoutCount by remember { mutableStateOf(0) }
     var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
-    var monthWorkoutCount by remember { mutableStateOf(0) }
-    var monthWorkoutMinutes by remember { mutableStateOf(0L) }
+    var cardioWorkouts by remember { mutableStateOf<List<CardioWorkout>>(emptyList()) }
     var healthConnectMessage by remember { mutableStateOf<String?>(null) }
     var isHealthRefreshing by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
     ) { grantedPermissions ->
-        hasHealthPermission = grantedPermissions.containsAll(healthPermissions)
+        hasExercisePermission = exerciseReadPermission in grantedPermissions
+        hasDistancePermission = distanceReadPermission in grantedPermissions
     }
 
     LaunchedEffect(dao) {
@@ -219,35 +232,66 @@ private fun RoutineScreen(
     LaunchedEffect(healthConnectClient) {
         if (healthConnectClient != null) {
             val granted = healthConnectClient.permissionController.getGrantedPermissions()
-            hasHealthPermission = granted.containsAll(healthPermissions)
+            hasExercisePermission = exerciseReadPermission in granted
+            hasDistancePermission = distanceReadPermission in granted
         }
     }
 
-    LaunchedEffect(healthConnectClient, hasHealthPermission, healthRefreshVersion) {
-        if (healthConnectClient != null && hasHealthPermission) {
+    LaunchedEffect(healthConnectClient, hasExercisePermission, hasDistancePermission, healthRefreshVersion) {
+        if (healthConnectClient != null && hasExercisePermission) {
             val zone = ZoneId.systemDefault()
             val today = LocalDate.now(zone)
             val month = YearMonth.from(today)
             val monthStart = month.atDay(1).atStartOfDay(zone).toInstant()
             val monthEnd = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant()
+            val historyStart = today.minusDays(29).atStartOfDay(zone).toInstant()
             runCatching {
-                healthConnectClient.readRecords(
+                val recentWorkouts = healthConnectClient.readRecords(
                     ReadRecordsRequest<ExerciseSessionRecord>(
                         recordType = ExerciseSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(monthStart, monthEnd)
+                        timeRangeFilter = TimeRangeFilter.between(historyStart, monthEnd)
                     )
                 ).records
-            }.onSuccess { monthWorkouts ->
+                val loadedCardioWorkouts = recentWorkouts
+                    .filter { isCardioExercise(it.exerciseType) }
+                    .map { session ->
+                        val distanceMeters = if (hasDistancePermission) {
+                            healthConnectClient.readRecords(
+                                ReadRecordsRequest<DistanceRecord>(
+                                    recordType = DistanceRecord::class,
+                                    timeRangeFilter = TimeRangeFilter.between(
+                                        session.startTime,
+                                        session.endTime
+                                    ),
+                                    dataOriginFilter = setOf(session.metadata.dataOrigin)
+                                )
+                            ).records.sumOf { it.distance.inMeters }
+                        } else {
+                            0.0
+                        }
+                        CardioWorkout(
+                            id = session.metadata.id,
+                            exerciseType = session.exerciseType,
+                            startTime = session.startTime,
+                            durationSeconds = Duration.between(
+                                session.startTime,
+                                session.endTime
+                            ).seconds.coerceAtLeast(0),
+                            distanceMeters = distanceMeters,
+                            sourcePackage = session.metadata.dataOrigin.packageName
+                        )
+                    }
+                    .sortedByDescending { it.startTime }
+                recentWorkouts to loadedCardioWorkouts
+            }.onSuccess { (recentWorkouts, loadedCardioWorkouts) ->
+                val monthWorkouts = recentWorkouts.filter { it.startTime >= monthStart }
                 val todayStart = today.atStartOfDay(zone).toInstant()
                 val tomorrowStart = today.plusDays(1).atStartOfDay(zone).toInstant()
                 todayWorkouts = monthWorkouts.filter {
                     it.startTime >= todayStart && it.startTime < tomorrowStart
                 }
                 todayWorkoutCount = todayWorkouts.size
-                monthWorkoutCount = monthWorkouts.size
-                monthWorkoutMinutes = monthWorkouts.sumOf {
-                    Duration.between(it.startTime, it.endTime).toMinutes().coerceAtLeast(0)
-                }
+                cardioWorkouts = loadedCardioWorkouts
                 healthConnectMessage = if (todayWorkouts.isEmpty()) {
                     "Health Connect에 오늘 운동 세션이 아직 없습니다."
                 } else {
@@ -340,7 +384,7 @@ private fun RoutineScreen(
                         selectedTab = 0
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.Default.Today, contentDescription = "오늘") },
+                    icon = { Icon(Icons.Default.Today, contentDescription = "오늘", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -350,7 +394,7 @@ private fun RoutineScreen(
                         selectedTab = 1
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -360,7 +404,17 @@ private fun RoutineScreen(
                         selectedTab = 2
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "기록") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "운동", modifier = Modifier.size(30.dp)) },
+                    alwaysShowLabel = false,
+                    colors = routiveNavigationColors()
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = {
+                        selectedTab = 3
+                        focusedRoutineId = null
+                    },
+                    icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "기록", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -389,7 +443,8 @@ private fun RoutineScreen(
                     Text(
                         when (selectedTab) {
                             1 -> "내 루틴"
-                            2 -> "기록"
+                            2 -> "운동"
+                            3 -> "기록"
                             else -> "${todayDayLabel(DayOfWeek.from(LocalDate.now()))}요일"
                         },
                         style = MaterialTheme.typography.headlineSmall
@@ -477,7 +532,7 @@ private fun RoutineScreen(
             }
             if (!hasHealthPermission && healthConnectAvailable) {
                 Text(
-                    "운동 자동 체크를 위해 권한을 허용해주세요.",
+                    "자동 체크와 유산소 통계를 위해 운동·거리 권한을 허용해주세요.",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )
@@ -514,7 +569,7 @@ private fun RoutineScreen(
                 PullToRefreshBox(
                     isRefreshing = isHealthRefreshing,
                     onRefresh = {
-                        if (hasHealthPermission) {
+                        if (hasExercisePermission) {
                             isHealthRefreshing = true
                             onRefreshHealth()
                         }
@@ -565,7 +620,7 @@ private fun RoutineScreen(
                                         color = Color(0xFFC9F27A),
                                         trackColor = Color.White.copy(alpha = 0.16f)
                                     )
-                                    if (hasHealthPermission) {
+                                    if (hasExercisePermission) {
                                         Text(
                                             if (todayWorkoutCount > 0) {
                                                 "운동 ${todayWorkoutCount}개를 자동으로 확인했어요"
@@ -692,15 +747,33 @@ private fun RoutineScreen(
                         }
                     }
                 }
+            } else if (selectedTab == 2) {
+                ExerciseDashboard(
+                    cardioWorkouts = cardioWorkouts,
+                    strengthRoutines = routines.filter {
+                        it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
+                    },
+                    hasExercisePermission = hasExercisePermission,
+                    hasDistancePermission = hasDistancePermission,
+                    isRefreshing = isHealthRefreshing,
+                    onRefresh = {
+                        if (hasExercisePermission) {
+                            isHealthRefreshing = true
+                            onRefreshHealth()
+                        }
+                    },
+                    onRequestPermission = {
+                        if (healthConnectAvailable) {
+                            permissionLauncher.launch(healthPermissions)
+                        }
+                    },
+                    onOpenStrengthLog = { routine -> recordingRoutine = routine }
+                )
             } else {
                 CalendarDashboard(
                     routines = routines,
                     completions = completions,
-                    monthWorkoutCount = monthWorkoutCount,
-                    monthWorkoutMinutes = monthWorkoutMinutes,
-                    hasHealthPermission = hasHealthPermission,
-                    installedOn = installedOn,
-                    onOpenStrengthLog = { routine -> recordingRoutine = routine }
+                    installedOn = installedOn
                 )
             }
         }
