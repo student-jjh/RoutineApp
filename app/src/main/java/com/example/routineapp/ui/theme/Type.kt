@@ -10,20 +10,31 @@ import androidx.compose.ui.unit.sp
 
 private val RoutiveFont = FontFamily(Font(R.font.nunito_sans))
 
+private fun routiveStyle(
+    weight: FontWeight,
+    size: Int,
+    lineHeight: Int,
+    letterSpacing: Float = 0f
+) = TextStyle(
+    fontFamily = RoutiveFont,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = lineHeight.sp,
+    letterSpacing = letterSpacing.sp
+)
+
 val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = RoutiveFont,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    ),
-    titleLarge = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.Bold),
-    titleMedium = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.SemiBold),
-    headlineMedium = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.Bold),
-    headlineSmall = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.Bold),
-    labelLarge = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.SemiBold),
-    bodyMedium = TextStyle(fontFamily = RoutiveFont),
-    bodySmall = TextStyle(fontFamily = RoutiveFont),
-    labelMedium = TextStyle(fontFamily = RoutiveFont, fontWeight = FontWeight.SemiBold)
+    displaySmall = routiveStyle(FontWeight.Bold, 36, 42, -0.6f),
+    headlineLarge = routiveStyle(FontWeight.Bold, 30, 36, -0.4f),
+    headlineMedium = routiveStyle(FontWeight.Bold, 26, 32, -0.25f),
+    headlineSmall = routiveStyle(FontWeight.Bold, 22, 28),
+    titleLarge = routiveStyle(FontWeight.Bold, 20, 26),
+    titleMedium = routiveStyle(FontWeight.SemiBold, 17, 22),
+    titleSmall = routiveStyle(FontWeight.SemiBold, 15, 20),
+    bodyLarge = routiveStyle(FontWeight.Normal, 16, 24),
+    bodyMedium = routiveStyle(FontWeight.Normal, 14, 20),
+    bodySmall = routiveStyle(FontWeight.Normal, 12, 17),
+    labelLarge = routiveStyle(FontWeight.Bold, 14, 18, 0.1f),
+    labelMedium = routiveStyle(FontWeight.SemiBold, 12, 16, 0.1f),
+    labelSmall = routiveStyle(FontWeight.SemiBold, 10, 14, 0.2f)
 )

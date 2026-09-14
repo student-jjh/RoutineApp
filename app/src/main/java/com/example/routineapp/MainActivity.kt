@@ -20,12 +20,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -33,6 +37,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationBarItemColors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
@@ -45,12 +51,16 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.res.painterResource
@@ -68,6 +78,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -272,7 +283,7 @@ private fun RoutineScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFFBCD6C1), Color(0xFFDCE9DE))
+                    colors = listOf(Color(0xFFD5E4D4), Color(0xFFEAF2E8), Color(0xFFE3EDE2))
                 )
             )
     ) {
@@ -280,7 +291,10 @@ private fun RoutineScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+                tonalElevation = 0.dp
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = {
@@ -288,7 +302,8 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.Today, contentDescription = "오늘") },
-                    label = { Text("오늘") }
+                    label = { Text("오늘") },
+                    colors = routiveNavigationColors()
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
@@ -297,7 +312,8 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
-                    label = { Text("루틴 설정") }
+                    label = { Text("루틴") },
+                    colors = routiveNavigationColors()
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
@@ -306,7 +322,8 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "기록") },
-                    label = { Text("기록") }
+                    label = { Text("인사이트") },
+                    colors = routiveNavigationColors()
                 )
             }
         }
@@ -315,22 +332,35 @@ private fun RoutineScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(id = R.drawable.routive_logo),
-                    contentDescription = "루티브 로고",
-                    modifier = Modifier.size(48.dp)
-                )
-                Text("루티브", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = 10.dp))
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.routive_logo),
+                        contentDescription = "루티브 로고",
+                        modifier = Modifier.padding(6.dp).size(34.dp)
+                    )
+                }
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text("ROUTIVE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                    Text(
+                        when (selectedTab) {
+                            1 -> "내 루틴"
+                            2 -> "인사이트"
+                            else -> "${todayDayLabel(DayOfWeek.from(LocalDate.now()))}요일"
+                        },
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 if (achievementStreak > 0) {
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
@@ -339,7 +369,7 @@ private fun RoutineScreen(
                             Icon(
                                 Icons.Default.LocalFireDepartment,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
@@ -351,20 +381,19 @@ private fun RoutineScreen(
                     }
                 }
             }
-            if (selectedTab == 1) {
-                Text(
-                    "나에게 맞는 루틴을 만들어보세요.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(18.dp))
 
             if (selectedTab == 1) {
-                Button(onClick = { isAdding = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("루틴 추가")
+                Button(
+                    onClick = { isAdding = true },
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Text("새 루틴 만들기", modifier = Modifier.padding(start = 8.dp))
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
 
             val needsHealthConnectUpdate =
                 healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
@@ -406,24 +435,14 @@ private fun RoutineScreen(
                         else -> "Health Connect 설치"
                     }
                 )
-            } else {
-                Text(
-                    "Health Connect 연결됨",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
             }
-            if (healthConnectAvailable) {
+            if (!hasHealthPermission && healthConnectAvailable) {
                 Text(
-                    if (hasHealthPermission) {
-                        "오늘 운동 세션: ${todayWorkoutCount}개"
-                    } else {
-                        "운동 자동 체크를 위해 권한을 허용해주세요."
-                    },
+                    "운동 자동 체크를 위해 권한을 허용해주세요.",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-            } else {
+            } else if (!healthConnectAvailable) {
                 Text(
                     if (needsHealthConnectUpdate) {
                         "Health Connect를 업데이트한 후 다시 시도해주세요."
@@ -434,7 +453,7 @@ private fun RoutineScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            healthConnectMessage?.let { message ->
+            if (!hasHealthPermission) healthConnectMessage?.let { message ->
                 Text(
                     message,
                     style = MaterialTheme.typography.bodySmall,
@@ -443,7 +462,7 @@ private fun RoutineScreen(
             }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (selectedTab == 1) 14.dp else 4.dp))
 
             val todayDay = DayOfWeek.from(java.time.LocalDate.now())
             val todayRoutines = routines.filter { it.activeDays.split(",").contains(todayDay.name) }
@@ -470,35 +489,70 @@ private fun RoutineScreen(
                         item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                                )
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
+                                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
                                     Text(
-                                        "${todayDayLabel(todayDay)}요일 진행 상황",
-                                        style = MaterialTheme.typography.titleMedium
+                                        if (todayRoutines.isEmpty()) "가볍게 하루를 시작해볼까요?" else "오늘의 루틴",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color.White.copy(alpha = 0.72f)
                                     )
-                                    Text(
-                                        "$completedToday / ${todayRoutines.size}개 완료",
-                                        style = MaterialTheme.typography.headlineSmall
-                                    )
+                                    Row(verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                                        Text(
+                                            "${(progress * 100).toInt()}",
+                                            style = MaterialTheme.typography.displaySmall,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            "%",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            "$completedToday / ${todayRoutines.size}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = Color.White
+                                        )
+                                    }
                                     LinearProgressIndicator(
                                         progress = { progress },
-                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp),
+                                        color = Color(0xFFC9F27A),
+                                        trackColor = Color.White.copy(alpha = 0.16f)
                                     )
                                     if (hasHealthPermission) {
                                         Text(
                                             if (todayWorkoutCount > 0) {
-                                                "Health Connect 운동 ${todayWorkoutCount}개 자동 확인됨"
+                                                "운동 ${todayWorkoutCount}개를 자동으로 확인했어요"
                                             } else {
-                                                "오늘 운동 데이터 없음 · 아래로 당겨 다시 확인"
+                                                "아래로 당겨 운동 데이터를 확인하세요"
                                             },
                                             style = MaterialTheme.typography.bodySmall,
-                                            modifier = Modifier.padding(top = 8.dp)
+                                            color = Color.White.copy(alpha = 0.72f),
+                                            modifier = Modifier.padding(top = 10.dp)
                                         )
                                     }
                                 }
+                            }
+                        }
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                Text("루틴", style = MaterialTheme.typography.titleLarge)
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    "${todayRoutines.size}개",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (todayRoutines.isEmpty()) {
@@ -558,7 +612,11 @@ private fun RoutineScreen(
                     }
                 }
             } else if (selectedTab == 1) {
-                Text("설정된 루틴", style = MaterialTheme.typography.titleLarge)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("전체 루틴", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.weight(1f))
+                    Text("${routines.size}개", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Spacer(Modifier.height(10.dp))
                 if (routines.isEmpty()) {
                     Text("등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
@@ -695,6 +753,15 @@ private fun RoutineScreen(
     }
 }
 
+@Composable
+private fun routiveNavigationColors(): NavigationBarItemColors = NavigationBarItemDefaults.colors(
+    selectedIconColor = MaterialTheme.colorScheme.primary,
+    selectedTextColor = MaterialTheme.colorScheme.primary,
+    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RoutineCard(
@@ -722,6 +789,16 @@ private fun RoutineCard(
                     Modifier
                 }
             ),
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(
+            1.dp,
+            if (showCompletionStatus && isCompleted) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (showCompletionStatus && isCompleted) {
                 MaterialTheme.colorScheme.primaryContainer
@@ -730,14 +807,43 @@ private fun RoutineCard(
             }
         )
     ) {
-        Column(modifier = Modifier.padding(if (compact) 12.dp else 16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = if (compact) 13.dp else 16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                Text(routine.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (routine.category == "EXERCISE") {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        Icon(
+                            imageVector = if (routine.category == "EXERCISE") Icons.Default.FitnessCenter else Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(routine.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (routine.category == "EXERCISE") {
+                            "${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
+                        } else {
+                            categoryLabel(routine.category)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (onRecord != null) {
-                    IconButton(onClick = onRecord) {
+                    IconButton(onClick = onRecord, modifier = Modifier.size(40.dp)) {
                         Icon(
                             Icons.Default.EditNote,
                             contentDescription = "근력 운동 기록",
@@ -755,9 +861,9 @@ private fun RoutineCard(
                     tint = if (isCompleted) {
                         MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.outline
                     },
-                    modifier = Modifier.size(if (compact) 30.dp else 32.dp)
+                    modifier = Modifier.size(if (compact) 32.dp else 34.dp)
                 )
             }
             if (routine.description.isNotBlank() && !compact) {
@@ -767,13 +873,6 @@ private fun RoutineCard(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            Text(
-                "${categoryLabel(routine.category)}" + if (routine.category == "EXERCISE") {
-                    " · ${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
-                } else "",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 6.dp)
-            )
             if (showActions) Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -814,23 +913,41 @@ private fun RoutineDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        shape = MaterialTheme.shapes.large,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Column {
+                Text(title, style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "반복할 일과 자동 완료 조건을 설정하세요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("루틴 이름") },
-                    singleLine = true
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("설명") },
-                    singleLine = true
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Box {
-                    OutlinedButton(onClick = { categoryExpanded = true }) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("분류: ${categoryLabel(category)}")
                     }
                     DropdownMenu(
@@ -849,8 +966,8 @@ private fun RoutineDialog(
                     }
                 }
                 if (category == "EXERCISE") {
-                    Box {
-                        OutlinedButton(onClick = { exerciseTypeExpanded = true }) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = { exerciseTypeExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                             Text("운동 종류: ${exerciseTypeLabel(exerciseType)}")
                         }
                         DropdownMenu(
@@ -874,7 +991,9 @@ private fun RoutineDialog(
                             if (value.all(Char::isDigit)) minimumDuration = value
                         },
                         label = { Text("최소 운동 시간(분)") },
-                        singleLine = true
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 Text("적용 요일", style = MaterialTheme.typography.labelLarge)

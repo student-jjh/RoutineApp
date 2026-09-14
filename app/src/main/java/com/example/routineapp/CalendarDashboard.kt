@@ -1,6 +1,7 @@
 package com.example.routineapp
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,24 +80,30 @@ fun CalendarDashboard(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                IconButton(onClick = { selectedMonth = selectedMonth.minusMonths(1) }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "이전 달")
-                }
-                Text(
-                    "${selectedMonth.year}년 ${selectedMonth.monthValue}월",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(
-                    onClick = { selectedMonth = selectedMonth.plusMonths(1) },
-                    enabled = selectedMonth < YearMonth.from(today)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "다음 달")
+                    IconButton(onClick = { selectedMonth = selectedMonth.minusMonths(1) }) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "이전 달")
+                    }
+                    Text(
+                        "${selectedMonth.year}. ${selectedMonth.monthValue.toString().padStart(2, '0')}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(
+                        onClick = { selectedMonth = selectedMonth.plusMonths(1) },
+                        enabled = selectedMonth < YearMonth.from(today)
+                    ) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "다음 달")
+                    }
                 }
             }
         }
@@ -116,9 +123,11 @@ fun CalendarDashboard(
         if (selectedMonth == YearMonth.from(today)) {
             item {
                 Card(
+                    shape = MaterialTheme.shapes.large,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -128,25 +137,26 @@ fun CalendarDashboard(
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Color(0xFFC9F27A),
                             modifier = Modifier.size(44.dp)
                         ) {
                             Icon(
                                 Icons.Default.FitnessCenter,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(10.dp)
                             )
                         }
                         Column(modifier = Modifier.padding(start = 14.dp)) {
-                            Text("이번 달 운동", style = MaterialTheme.typography.titleMedium)
+                            Text("이번 달 운동", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.7f))
                             Text(
                                 if (hasHealthPermission) {
                                     "${monthWorkoutCount}회 · 총 ${formatMinutes(monthWorkoutMinutes)}"
                                 } else {
                                     "Health Connect를 연결하면 운동 통계를 볼 수 있어요"
                                 },
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White
                             )
                         }
                     }
@@ -155,7 +165,11 @@ fun CalendarDashboard(
         }
 
         item {
-            Text("루틴별 달성률", style = MaterialTheme.typography.titleLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("루틴별 달성률", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.weight(1f))
+                Text("설치 이후", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         if (routineRates.isEmpty()) {
@@ -163,11 +177,14 @@ fun CalendarDashboard(
         } else {
             items(routineRates, key = { it.routine.id }) { item ->
                 Card(
+                    shape = MaterialTheme.shapes.medium,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 item.routine.name,
@@ -184,7 +201,8 @@ fun CalendarDashboard(
                             progress = { item.rate / 100f },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 10.dp),
+                                .padding(top = 12.dp)
+                                .height(7.dp),
                             color = achievementColor(item.rate),
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -218,9 +236,12 @@ private fun MonthCalendar(
     val completionKeys = completions.map { it.routineId to it.date }.toSet()
 
     Card(
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 listOf("월", "화", "수", "목", "금", "토", "일").forEach { label ->
                     Text(
@@ -249,9 +270,11 @@ private fun MonthCalendar(
                             val isFuture = date > today
                             val isBeforeInstall = date < installedOn
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 color = if (isFuture || isBeforeInstall) {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    Color.Transparent
+                                } else if (date == today && scheduled.isEmpty()) {
+                                    MaterialTheme.colorScheme.surfaceVariant
                                 } else {
                                     achievementColor(rate)
                                 },
@@ -294,31 +317,28 @@ private fun MonthCalendar(
 private fun AchievementLegend() {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        listOf(0 to "0", 25 to "25", 50 to "50", 75 to "75", 100 to "100%").forEach { (rate, label) ->
+        Text("낮음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        listOf(0, 25, 50, 75, 100).forEach { rate ->
             Box(
                 modifier = Modifier
-                    .padding(start = 6.dp)
+                    .padding(start = 5.dp)
                     .size(12.dp)
                     .background(achievementColor(rate), RoundedCornerShape(3.dp))
             )
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(start = 3.dp)
-            )
         }
+        Text("높음", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
     }
 }
 
 private fun achievementColor(rate: Int): Color = when {
-    rate >= 100 -> Color(0xFF1F6B47)
-    rate >= 75 -> Color(0xFF4F9569)
-    rate >= 50 -> Color(0xFF84B894)
-    rate >= 25 -> Color(0xFFBAD7C2)
-    else -> Color(0xFFE8EEE9)
+    rate >= 100 -> Color(0xFF173F2C)
+    rate >= 75 -> Color(0xFF347A52)
+    rate >= 50 -> Color(0xFF72A982)
+    rate >= 25 -> Color(0xFFB8D5BC)
+    else -> Color(0xFFE7EFE5)
 }
 
 private fun formatMinutes(minutes: Long): String = when {

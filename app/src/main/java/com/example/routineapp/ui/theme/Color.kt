@@ -2,10 +2,15 @@ package com.example.routineapp.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFA7D7B7)
-val PurpleGrey80 = Color(0xFFB8CCBE)
-val Pink80 = Color(0xFFD0D99A)
-
-val Purple40 = Color(0xFF2E7654)
-val PurpleGrey40 = Color(0xFF597A63)
-val Pink40 = Color(0xFF718238)
+val Forest = Color(0xFF173F2C)
+val ForestDeep = Color(0xFF0D2B1D)
+val Leaf = Color(0xFF347A52)
+val Lime = Color(0xFFC9F27A)
+val Mint = Color(0xFFDCECDD)
+val Mist = Color(0xFFEAF2E8)
+val Canvas = Color(0xFFE5EEE3)
+val Paper = Color(0xFFF8FBF6)
+val Ink = Color(0xFF15231B)
+val MutedInk = Color(0xFF5E6E63)
+val Hairline = Color(0xFFB7C8BB)
+val Warm = Color(0xFFF2D783)

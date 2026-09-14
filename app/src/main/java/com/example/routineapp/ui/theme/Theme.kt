@@ -1,52 +1,46 @@
 package com.example.routineapp.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+private val RoutiveColorScheme = lightColorScheme(
+    primary = Forest,
+    onPrimary = Color.White,
+    primaryContainer = Mint,
+    onPrimaryContainer = ForestDeep,
+    secondary = Leaf,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD3E8D5),
+    onSecondaryContainer = ForestDeep,
+    tertiary = Color(0xFF8D6D13),
+    onTertiary = Color.White,
+    tertiaryContainer = Warm,
+    onTertiaryContainer = Color(0xFF2B2100),
+    background = Canvas,
+    onBackground = Ink,
+    surface = Paper,
+    onSurface = Ink,
+    surfaceVariant = Mist,
+    onSurfaceVariant = MutedInk,
+    surfaceContainer = Color(0xFFD8E6D8),
+    surfaceContainerLow = Color(0xFFEEF5EC),
+    surfaceContainerHigh = Color(0xFFCDDDCE),
+    outline = Hairline,
+    outlineVariant = Color(0xFFD3DED3),
+    error = Color(0xFFBA1A1A)
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    primaryContainer = Color(0xFFADD2B8),
-    onPrimaryContainer = Color(0xFF123C29),
-    secondaryContainer = Color(0xFFC5D9C8),
-    onSecondaryContainer = Color(0xFF263B2D),
-    background = Color(0xFFD8E6DA),
-    surface = Color(0xFFEEF4EE),
-    surfaceVariant = Color(0xFFCADACD),
-    surfaceContainer = Color(0xFFBED3C2),
-    surfaceContainerLow = Color(0xFFDCE8DE),
-    surfaceContainerHigh = Color(0xFFB2CBB7),
-    onPrimary = Color.White,
-    onBackground = Color(0xFF1D2A21),
-    onSurface = Color(0xFF1D2A21),
-    onSurfaceVariant = Color(0xFF4B5C50),
-    outline = Color(0xFF718076)
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+private val RoutiveShapes = Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(34.dp)
 )
 
 @Composable
@@ -56,19 +50,10 @@ fun RoutineAppTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = RoutiveColorScheme,
         typography = Typography,
+        shapes = RoutiveShapes,
         content = content
     )
 }
