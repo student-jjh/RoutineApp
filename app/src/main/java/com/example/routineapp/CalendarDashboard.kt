@@ -24,12 +24,16 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +61,7 @@ fun CalendarDashboard(
     installedOn: LocalDate
 ) {
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showRoutineRates by remember { mutableStateOf(false) }
     val today = LocalDate.now()
     val monthEnd = selectedMonth.atEndOfMonth()
@@ -94,7 +99,17 @@ fun CalendarDashboard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(onClick = { selectedMonth = selectedMonth.minusMonths(1) }) {
+                    IconButton(
+                        onClick = {
+                            val previous = selectedMonth.minusMonths(1)
+                            selectedMonth = previous
+                            selectedDate = maxOf(
+                                previous.atDay(minOf(selectedDate.dayOfMonth, previous.lengthOfMonth())),
+                                installedOn
+                            )
+                        },
+                        enabled = selectedMonth > YearMonth.from(installedOn)
+                    ) {
                         Icon(Icons.Default.ChevronLeft, contentDescription = "이전 달")
                     }
                     Text(
@@ -103,7 +118,14 @@ fun CalendarDashboard(
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(
-                        onClick = { selectedMonth = selectedMonth.plusMonths(1) },
+                        onClick = {
+                            val next = selectedMonth.plusMonths(1)
+                            selectedMonth = next
+                            selectedDate = minOf(
+                                next.atDay(minOf(selectedDate.dayOfMonth, next.lengthOfMonth())),
+                                today
+                            )
+                        },
                         enabled = selectedMonth < YearMonth.from(today)
                     ) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "다음 달")
@@ -118,11 +140,41 @@ fun CalendarDashboard(
                 routines = routines,
                 completions = completions,
                 today = today,
-                installedOn = installedOn
+                installedOn = installedOn,
+                selectedDate = selectedDate,
+                onDateSelected = { date -> selectedDate = date }
             )
         }
 
         item { AchievementLegend() }
+
+        item {
+            DateHistoryNavigator(
+                selectedDate = selectedDate,
+                today = today,
+                installedOn = installedOn,
+                onPrevious = {
+                    selectedDate = selectedDate.minusDays(1)
+                    selectedMonth = YearMonth.from(selectedDate)
+                },
+                onNext = {
+                    selectedDate = selectedDate.plusDays(1)
+                    selectedMonth = YearMonth.from(selectedDate)
+                },
+                onToday = {
+                    selectedDate = today
+                    selectedMonth = YearMonth.from(today)
+                }
+            )
+        }
+
+        item {
+            DayRoutineHistory(
+                date = selectedDate,
+                routines = routines,
+                completions = completions
+            )
+        }
 
         if (selectedMonth == YearMonth.from(today)) {
             item {
@@ -253,7 +305,9 @@ private fun MonthCalendar(
     routines: List<RoutineEntity>,
     completions: List<RoutineCompletionEntity>,
     today: LocalDate,
-    installedOn: LocalDate
+    installedOn: LocalDate,
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit
 ) {
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
     val cells = List<LocalDate?>(firstOffset) { null } +
@@ -304,10 +358,19 @@ private fun MonthCalendar(
                                 } else {
                                     achievementColor(rate)
                                 },
+                                border = if (date == selectedDate) {
+                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                } else {
+                                    null
+                                },
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(0.9f)
                                     .padding(2.dp)
+                                    .clickable(
+                                        enabled = !isFuture && !isBeforeInstall,
+                                        onClick = { onDateSelected(date) }
+                                    )
                             ) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -332,6 +395,133 @@ private fun MonthCalendar(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DateHistoryNavigator(
+    selectedDate: LocalDate,
+    today: LocalDate,
+    installedOn: LocalDate,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onToday: () -> Unit
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onPrevious, enabled = selectedDate > installedOn) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "이전 날짜")
+            }
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "${selectedDate.monthValue}월 ${selectedDate.dayOfMonth}일",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    "${todayDayLabel(selectedDate.dayOfWeek)}요일 기록",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (selectedDate == today) {
+                IconButton(onClick = {}, enabled = false) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null)
+                }
+            } else {
+                IconButton(onClick = onNext, enabled = selectedDate < today) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "다음 날짜")
+                }
+            }
+            FilledTonalButton(
+                onClick = onToday,
+                enabled = selectedDate != today,
+                modifier = Modifier.padding(end = 4.dp)
+            ) {
+                Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("오늘", modifier = Modifier.padding(start = 4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayRoutineHistory(
+    date: LocalDate,
+    routines: List<RoutineEntity>,
+    completions: List<RoutineCompletionEntity>
+) {
+    val scheduled = routines.filter { date.dayOfWeek.name in it.activeDays.split(",") }
+    val completionByRoutine = completions
+        .filter { it.date == date.toString() }
+        .associateBy { it.routineId }
+    val completedCount = scheduled.count { it.id in completionByRoutine }
+
+    Card(
+        shape = MaterialTheme.shapes.large,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("그날의 루틴", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        if (scheduled.isEmpty()) "예정된 루틴이 없어요" else "$completedCount / ${scheduled.size}개 완료",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (scheduled.isNotEmpty()) {
+                    Text(
+                        "${completedCount * 100 / scheduled.size}%",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            scheduled.forEach { routine ->
+                val completion = completionByRoutine[routine.id]
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (completion != null) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = if (completion != null) "완료" else "미완료",
+                        tint = if (completion != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(routine.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (routine.category == "EXERCISE") {
+                                "${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
+                            } else {
+                                categoryLabel(routine.category)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (completion?.source == "HEALTH_CONNECT") {
+                        Text(
+                            "자동",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
                     }
                 }
             }

@@ -302,6 +302,7 @@ private fun RoutineScreen(
         containerColor = Color.Transparent,
         bottomBar = {
             NavigationBar(
+                modifier = Modifier.height(64.dp),
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
                 tonalElevation = 0.dp
             ) {
@@ -312,7 +313,7 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.Today, contentDescription = "오늘") },
-                    label = { Text("오늘") },
+                    alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
                 NavigationBarItem(
@@ -322,7 +323,7 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정") },
-                    label = { Text("루틴") },
+                    alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
                 NavigationBarItem(
@@ -332,7 +333,7 @@ private fun RoutineScreen(
                         focusedRoutineId = null
                     },
                     icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "기록") },
-                    label = { Text("인사이트") },
+                    alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
             }
@@ -360,7 +361,7 @@ private fun RoutineScreen(
                     Text(
                         when (selectedTab) {
                             1 -> "내 루틴"
-                            2 -> "인사이트"
+                            2 -> "기록"
                             else -> "${todayDayLabel(DayOfWeek.from(LocalDate.now()))}요일"
                         },
                         style = MaterialTheme.typography.headlineSmall
@@ -1078,7 +1079,7 @@ private fun exerciseTypeCode(type: Int): String = when (type) {
     else -> "OTHER"
 }
 
-private fun exerciseTypeLabel(type: String): String = when (type) {
+fun exerciseTypeLabel(type: String): String = when (type) {
     "WALKING" -> "걷기"
     "RUNNING" -> "달리기"
     "STRENGTH_TRAINING" -> "근력 운동"
@@ -1086,7 +1087,7 @@ private fun exerciseTypeLabel(type: String): String = when (type) {
     else -> type
 }
 
-private fun categoryLabel(category: String): String = when (category) {
+fun categoryLabel(category: String): String = when (category) {
     "EXERCISE" -> "운동"
     else -> "일반"
 }
@@ -1102,7 +1103,7 @@ private val WEEKDAYS = setOf(
 private val WEEKENDS = setOf(DayOfWeek.SATURDAY.name, DayOfWeek.SUNDAY.name)
 private val ALL_DAY_SET = DayOfWeek.values().map { it.name }.toSet()
 
-private fun todayDayLabel(day: DayOfWeek): String = when (day) {
+fun todayDayLabel(day: DayOfWeek): String = when (day) {
     DayOfWeek.MONDAY -> "월"
     DayOfWeek.TUESDAY -> "화"
     DayOfWeek.WEDNESDAY -> "수"
