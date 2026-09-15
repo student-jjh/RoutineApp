@@ -20,6 +20,28 @@
 
 <br />
 
+## Meet Routive
+
+<table>
+  <tr>
+    <th align="center">Today</th>
+    <th align="center">My Routines</th>
+    <th align="center">First-launch guide</th>
+  </tr>
+  <tr>
+    <td width="33%" align="center"><a href="docs/screenshots/today.png"><img src="docs/screenshots/today.png" alt="Today screen showing three demo routines, time-of-day filters, and one completed routine" width="260" /></a></td>
+    <td width="33%" align="center"><a href="docs/screenshots/routines.png"><img src="docs/screenshots/routines.png" alt="My Routines screen showing color-coded time tags, weekday schedules, and routine settings" width="260" /></a></td>
+    <td width="33%" align="center"><a href="docs/screenshots/onboarding.png"><img src="docs/screenshots/onboarding.png" alt="Swipe onboarding with a routine introduction and page indicators" width="260" /></a></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>A focused daily checklist</sub></td>
+    <td align="center"><sub>Your schedule, your order</sub></td>
+    <td align="center"><sub>A friendly first step</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Actual app screenshots captured on an Android emulator with demo routines.<br />The interface is currently in Korean. No personal workout or health records are shown.<br />Select a screenshot to view it at full size.</sub></p>
+
 ## Small routines. Meaningful progress.
 
 Routive brings your daily checklist and workout notebook together. Plan what matters, check in without friction, and look back at the days you showed up.
