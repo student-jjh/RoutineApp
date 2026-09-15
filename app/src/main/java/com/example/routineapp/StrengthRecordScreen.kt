@@ -81,17 +81,6 @@ fun StrengthRecordOverlay(
     var selectedGroup by remember { mutableStateOf("BACK") }
     var selectedExerciseGroup by remember { mutableStateOf("ALL") }
     var selectedExercise by remember { mutableStateOf("") }
-    var restDurationSeconds by remember { mutableStateOf(60) }
-    var remainingRestSeconds by remember { mutableStateOf(60) }
-    var isRestTimerRunning by remember { mutableStateOf(false) }
-
-    LaunchedEffect(isRestTimerRunning) {
-        while (isRestTimerRunning && remainingRestSeconds > 0) {
-            delay(1_000)
-            remainingRestSeconds -= 1
-        }
-        if (remainingRestSeconds == 0) isRestTimerRunning = false
-    }
     val routineRecords = records.filter { it.routineId == routine.id }
     val recordIds = routineRecords.map { it.id }.toSet()
     val routineSets = strengthSets.filter { it.recordId in recordIds }
@@ -151,24 +140,6 @@ fun StrengthRecordOverlay(
                     StrengthSummaryCard("오늘 운동", "${todayRecords.size}종목", Modifier.weight(1f))
                     StrengthSummaryCard("오늘 세트", "${todaySetCount}세트", Modifier.weight(1f))
                 }
-                RestTimerCard(
-                    durationSeconds = restDurationSeconds,
-                    remainingSeconds = remainingRestSeconds,
-                    isRunning = isRestTimerRunning,
-                    onDurationSelected = { duration ->
-                        isRestTimerRunning = false
-                        restDurationSeconds = duration
-                        remainingRestSeconds = duration
-                    },
-                    onToggle = {
-                        if (remainingRestSeconds == 0) remainingRestSeconds = restDurationSeconds
-                        isRestTimerRunning = !isRestTimerRunning
-                    },
-                    onReset = {
-                        isRestTimerRunning = false
-                        remainingRestSeconds = restDurationSeconds
-                    }
-                )
                 LazyRow(
                     modifier = Modifier.padding(top = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -495,6 +466,17 @@ private fun StrengthRecordDialog(
     onDismiss: () -> Unit,
     onSave: (StrengthRecordEntity, List<StrengthSetEntity>) -> Unit
 ) {
+    var restDurationSeconds by remember { mutableStateOf(60) }
+    var remainingRestSeconds by remember { mutableStateOf(60) }
+    var isRestTimerRunning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isRestTimerRunning) {
+        while (isRestTimerRunning && remainingRestSeconds > 0) {
+            delay(1_000)
+            remainingRestSeconds -= 1
+        }
+        if (remainingRestSeconds == 0) isRestTimerRunning = false
+    }
     var performedDate by remember { mutableStateOf(initialRecord?.performedDate ?: LocalDate.now().toString()) }
     var muscleGroup by remember { mutableStateOf(initialRecord?.muscleGroup ?: "CHEST") }
     var muscleGroupExpanded by remember { mutableStateOf(false) }
@@ -536,6 +518,24 @@ private fun StrengthRecordDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(routine.name, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                RestTimerCard(
+                    durationSeconds = restDurationSeconds,
+                    remainingSeconds = remainingRestSeconds,
+                    isRunning = isRestTimerRunning,
+                    onDurationSelected = { duration ->
+                        isRestTimerRunning = false
+                        restDurationSeconds = duration
+                        remainingRestSeconds = duration
+                    },
+                    onToggle = {
+                        if (remainingRestSeconds == 0) remainingRestSeconds = restDurationSeconds
+                        isRestTimerRunning = !isRestTimerRunning
+                    },
+                    onReset = {
+                        isRestTimerRunning = false
+                        remainingRestSeconds = restDurationSeconds
+                    }
+                )
                 OutlinedTextField(
                     value = performedDate,
                     onValueChange = { performedDate = it },
