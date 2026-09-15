@@ -21,6 +21,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -40,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +61,7 @@ import com.example.routineapp.data.RoutineEntity
 import com.example.routineapp.data.StrengthRecordEntity
 import com.example.routineapp.data.StrengthSetEntity
 import java.time.LocalDate
+import kotlinx.coroutines.delay
 
 @Composable
 fun StrengthRecordOverlay(
@@ -76,6 +81,17 @@ fun StrengthRecordOverlay(
     var selectedGroup by remember { mutableStateOf("BACK") }
     var selectedExerciseGroup by remember { mutableStateOf("ALL") }
     var selectedExercise by remember { mutableStateOf("") }
+    var restDurationSeconds by remember { mutableStateOf(60) }
+    var remainingRestSeconds by remember { mutableStateOf(60) }
+    var isRestTimerRunning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isRestTimerRunning) {
+        while (isRestTimerRunning && remainingRestSeconds > 0) {
+            delay(1_000)
+            remainingRestSeconds -= 1
+        }
+        if (remainingRestSeconds == 0) isRestTimerRunning = false
+    }
     val routineRecords = records.filter { it.routineId == routine.id }
     val recordIds = routineRecords.map { it.id }.toSet()
     val routineSets = strengthSets.filter { it.recordId in recordIds }
@@ -135,6 +151,24 @@ fun StrengthRecordOverlay(
                     StrengthSummaryCard("오늘 운동", "${todayRecords.size}종목", Modifier.weight(1f))
                     StrengthSummaryCard("오늘 세트", "${todaySetCount}세트", Modifier.weight(1f))
                 }
+                RestTimerCard(
+                    durationSeconds = restDurationSeconds,
+                    remainingSeconds = remainingRestSeconds,
+                    isRunning = isRestTimerRunning,
+                    onDurationSelected = { duration ->
+                        isRestTimerRunning = false
+                        restDurationSeconds = duration
+                        remainingRestSeconds = duration
+                    },
+                    onToggle = {
+                        if (remainingRestSeconds == 0) remainingRestSeconds = restDurationSeconds
+                        isRestTimerRunning = !isRestTimerRunning
+                    },
+                    onReset = {
+                        isRestTimerRunning = false
+                        remainingRestSeconds = restDurationSeconds
+                    }
+                )
                 LazyRow(
                     modifier = Modifier.padding(top = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -306,6 +340,72 @@ fun StrengthRecordOverlay(
         )
     }
 }
+
+@Composable
+private fun RestTimerCard(
+    durationSeconds: Int,
+    remainingSeconds: Int,
+    isRunning: Boolean,
+    onDurationSelected: (Int) -> Unit,
+    onToggle: () -> Unit,
+    onReset: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("세트 사이 휴식", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (isRunning) "다음 세트까지 휴식 중" else "세트가 끝나면 타이머를 시작하세요",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    formatRestTime(remainingSeconds),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            LazyRow(
+                modifier = Modifier.padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(listOf(30, 60, 90), key = { it }) { seconds ->
+                    FilterChip(
+                        selected = durationSeconds == seconds,
+                        onClick = { onDurationSelected(seconds) },
+                        label = { Text("${seconds}초") }
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onToggle, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = null
+                    )
+                    Text(if (isRunning) "일시정지" else "휴식 시작", modifier = Modifier.padding(start = 6.dp))
+                }
+                OutlinedButton(onClick = onReset) {
+                    Icon(Icons.Default.Replay, contentDescription = "타이머 초기화")
+                }
+            }
+        }
+    }
+}
+
+private fun formatRestTime(totalSeconds: Int): String =
+    "${(totalSeconds / 60).toString().padStart(2, '0')}:${(totalSeconds % 60).toString().padStart(2, '0')}"
 
 @Composable
 private fun StrengthSummaryCard(label: String, value: String, modifier: Modifier = Modifier) {

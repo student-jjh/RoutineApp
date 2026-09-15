@@ -209,16 +209,8 @@ private fun RoutineScreen(
     var hasElevationPermission by remember { mutableStateOf(false) }
     var hasCaloriesPermission by remember { mutableStateOf(false) }
     var areHealthPermissionsChecked by remember { mutableStateOf(false) }
-    val hasHealthPermission = healthPermissions.all {
-        when (it) {
-            exerciseReadPermission -> hasExercisePermission
-            distanceReadPermission -> hasDistancePermission
-            heartRateReadPermission -> hasHeartRatePermission
-            cadenceReadPermission -> hasCadencePermission
-            elevationReadPermission -> hasElevationPermission
-            else -> hasCaloriesPermission
-        }
-    }
+    // Exercise + distance are the core connection. Other metrics are optional analysis data.
+    val hasHealthPermission = hasExercisePermission && hasDistancePermission
     var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
     var cardioWorkouts by remember { mutableStateOf<List<CardioWorkout>>(emptyList()) }
     var isHealthRefreshing by remember { mutableStateOf(false) }
@@ -700,7 +692,7 @@ private fun RoutineScreen(
                                 )
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
                                         .padding(start = 8.dp)
                                         .size(40.dp)
@@ -709,8 +701,8 @@ private fun RoutineScreen(
                                     Icon(
                                         Icons.Default.Add,
                                         contentDescription = "루틴 추가",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(8.dp)
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(7.dp)
                                     )
                                 }
                             }
