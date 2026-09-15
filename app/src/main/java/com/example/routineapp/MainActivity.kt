@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -225,6 +227,21 @@ private fun RoutineScreen(
         contract = PermissionController.createRequestPermissionResultContract()
     ) {
         onRefreshHealth()
+    }
+    val openHealthConnectPermissions = {
+        runCatching {
+            val intent = Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
+                .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            } else {
+                context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+            }
+        }.onFailure {
+            runCatching {
+                context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+            }
+        }
     }
 
     LaunchedEffect(dao) {
@@ -590,10 +607,7 @@ private fun RoutineScreen(
                 OutlinedButton(
                     onClick = {
                         if (hasExercisePermission && hasDistancePermission) {
-                            context.startActivity(
-                                Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
-                                    .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
-                            )
+                            openHealthConnectPermissions()
                         } else {
                             permissionLauncher.launch(healthPermissions)
                         }
@@ -684,11 +698,20 @@ private fun RoutineScreen(
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                IconButton(
-                                    onClick = { isAdding = true },
-                                    modifier = Modifier.size(36.dp)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .size(40.dp)
+                                        .clickable { isAdding = true }
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = "루틴 추가", modifier = Modifier.size(22.dp))
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "루틴 추가",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(8.dp)
+                                    )
                                 }
                             }
                         }
@@ -815,14 +838,7 @@ private fun RoutineScreen(
                     onRequestPermission = {
                         if (healthConnectAvailable) {
                             if (hasExercisePermission && hasDistancePermission) {
-                                runCatching {
-                                    context.startActivity(
-                                        Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
-                                            .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
-                                    )
-                                }.onFailure {
-                                    context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
-                                }
+                                openHealthConnectPermissions()
                             } else {
                                 permissionLauncher.launch(healthPermissions)
                             }
