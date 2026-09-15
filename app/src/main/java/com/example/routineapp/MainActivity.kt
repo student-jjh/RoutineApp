@@ -995,7 +995,7 @@ private fun RoutineCard(
                 if (onCardClick != null || onLongClick != null) {
                     Modifier.combinedClickable(
                         onClick = { onCardClick?.invoke() },
-                        onLongClick = { onLongClick?.invoke() }
+                        onLongClick = onLongClick
                     )
                 } else {
                     Modifier
