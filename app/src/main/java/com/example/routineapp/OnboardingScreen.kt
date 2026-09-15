@@ -1,16 +1,21 @@
 package com.example.routineapp
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -27,19 +32,20 @@ private val guidePages = listOf(
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
-    var page by rememberSaveable { mutableStateOf(0) }
-    val item = guidePages[page]
+    val pagerState = rememberPagerState(pageCount = { guidePages.size })
     Dialog(onDismissRequest = onFinish, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("ROUTIVE · 사용 가이드", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onFinish) { Text("닫기") }
+                    TextButton(onClick = onFinish) { Text("건너뛰기") }
                 }
-                Column(
-                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
-                ) {
+                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f).fillMaxWidth()) { page ->
+                    val item = guidePages[page]
+                    Column(
+                        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
                     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primary) {
                         Icon(item.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(24.dp).size(48.dp))
@@ -50,13 +56,29 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         Text(item.hint, modifier = Modifier.padding(20.dp), style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    }
                 }
-                Text("${page + 1} / ${guidePages.size}", style = MaterialTheme.typography.labelMedium)
-                LinearProgressIndicator(progress = { (page + 1f) / guidePages.size }, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (page > 0) OutlinedButton(onClick = { page-- }, modifier = Modifier.height(52.dp)) { Text("이전") }
-                    Button(onClick = { if (page == guidePages.lastIndex) onFinish() else page++ }, modifier = Modifier.weight(1f).height(52.dp)) {
-                        Text(if (page == guidePages.lastIndex) "시작하기" else "다음")
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp).semantics {
+                        contentDescription = "사용 가이드 ${pagerState.currentPage + 1} / ${guidePages.size} 페이지"
+                    },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(guidePages.size) { index ->
+                        Box(Modifier.size(8.dp).background(
+                            if (pagerState.currentPage == index) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant,
+                            CircleShape
+                        ))
+                    }
+                }
+                Box(Modifier.fillMaxWidth().height(52.dp), contentAlignment = Alignment.Center) {
+                    if (pagerState.currentPage == guidePages.lastIndex) {
+                        Button(onClick = onFinish, modifier = Modifier.fillMaxSize()) { Text("시작하기") }
+                    } else {
+                        Text("좌우로 넘겨보세요", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
