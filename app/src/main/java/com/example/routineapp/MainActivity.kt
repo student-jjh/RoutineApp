@@ -1053,8 +1053,8 @@ private fun RoutineCard(
                     )
                     if (!showCompletionStatus) Text(
                         routine.activeDays.split(",").mapNotNull { day ->
-                            runCatching { todayDayLabel(DayOfWeek.valueOf(day)) }.getOrNull()
-                        }.joinToString(" · "),
+                            runCatching { DayOfWeek.valueOf(day) }.getOrNull()
+                        }.distinct().sortedBy { it.value }.joinToString(" · ") { todayDayLabel(it) },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(top = 4.dp)
@@ -1275,7 +1275,7 @@ private fun RoutineDialog(
                         category,
                         exerciseType.trim().ifBlank { "ANY" },
                         minimumDuration.toIntOrNull() ?: 0,
-                        activeDays.sorted().joinToString(",")
+                        DayOfWeek.values().filter { it.name in activeDays }.joinToString(",") { it.name }
                     )
                 },
                 enabled = name.isNotBlank()
