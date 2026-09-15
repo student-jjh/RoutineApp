@@ -1,6 +1,7 @@
 package com.example.routineapp
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
@@ -54,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.routineapp.data.CustomExerciseEntity
@@ -456,6 +459,31 @@ private fun ExerciseTrendCard(
 }
 
 @Composable
+private fun SelectionField(
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 2.dp))
+            }
+            Icon(Icons.Default.ExpandMore, contentDescription = "$label 선택")
+        }
+    }
+}
+
+@Composable
 private fun StrengthRecordDialog(
     routine: RoutineEntity,
     recentRecords: List<StrengthRecordEntity>,
@@ -511,13 +539,30 @@ private fun StrengthRecordDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initialRecord == null) "근력 기록 추가" else "근력 기록 수정") },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Column {
+                Text(
+                    if (initialRecord == null) "근력 기록 추가" else "근력 기록 수정",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    "오늘의 세트와 컨디션을 남겨보세요",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(routine.name, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("운동 정보", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(routine.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 RestTimerCard(
                     durationSeconds = restDurationSeconds,
                     remainingSeconds = remainingRestSeconds,
@@ -541,12 +586,15 @@ private fun StrengthRecordDialog(
                     onValueChange = { performedDate = it },
                     label = { Text("운동 날짜 (YYYY-MM-DD)") },
                     isError = !validDate,
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Box {
-                    OutlinedButton(onClick = { muscleGroupExpanded = true }) {
-                        Text("운동 부위: ${muscleGroupLabel(muscleGroup)}")
-                    }
+                    SelectionField(
+                        label = "운동 부위",
+                        value = muscleGroupLabel(muscleGroup),
+                        onClick = { muscleGroupExpanded = true }
+                    )
                     DropdownMenu(
                         expanded = muscleGroupExpanded,
                         onDismissRequest = { muscleGroupExpanded = false }
@@ -564,9 +612,11 @@ private fun StrengthRecordDialog(
                     }
                 }
                 Box {
-                    OutlinedButton(onClick = { exerciseExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (exerciseName.isBlank()) "운동 종목 선택" else exerciseName)
-                    }
+                    SelectionField(
+                        label = "운동 종목",
+                        value = if (exerciseName.isBlank()) "종목을 선택하세요" else exerciseName,
+                        onClick = { exerciseExpanded = true }
+                    )
                     DropdownMenu(
                         expanded = exerciseExpanded,
                         onDismissRequest = { exerciseExpanded = false }
@@ -614,49 +664,72 @@ private fun StrengthRecordDialog(
                         }
                     ) { Text("직전 ${previousSets.size}세트 불러오기") }
                 }
-                Text("세트별 기록", style = MaterialTheme.typography.titleMedium)
+                Column(modifier = Modifier.padding(top = 6.dp)) {
+                    Text("세트별 기록", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "무게가 없는 운동은 비워두고 횟수만 기록할 수 있어요",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
                 setDrafts.forEachIndexed { index, draft ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("${index + 1}", fontWeight = FontWeight.Bold)
-                        OutlinedTextField(
-                            value = draft.weight,
-                            onValueChange = { value ->
-                                if (value.count { it == '.' } <= 1 && value.all { it.isDigit() || it == '.' }) {
-                                    setDrafts[index] = draft.copy(weight = value)
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("${index + 1}", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                                 }
-                            },
-                            label = { Text("중량(선택)") },
-                            placeholder = { Text("맨몸") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = draft.reps,
-                            onValueChange = { value ->
-                                if (value.all(Char::isDigit)) setDrafts[index] = draft.copy(reps = value)
-                            },
-                            label = { Text("횟수") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (setDrafts.size > 1) {
-                            IconButton(onClick = { setDrafts.removeAt(index) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "세트 삭제")
+                            }
+                            OutlinedTextField(
+                                value = draft.weight,
+                                onValueChange = { value ->
+                                    if (value.count { it == '.' } <= 1 && value.all { it.isDigit() || it == '.' }) {
+                                        setDrafts[index] = draft.copy(weight = value)
+                                    }
+                                },
+                                label = { Text("중량") },
+                                placeholder = { Text("맨몸") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = draft.reps,
+                                onValueChange = { value ->
+                                    if (value.all(Char::isDigit)) setDrafts[index] = draft.copy(reps = value)
+                                },
+                                label = { Text("횟수") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (setDrafts.size > 1) {
+                                IconButton(onClick = { setDrafts.removeAt(index) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "세트 삭제")
+                                }
                             }
                         }
                     }
                 }
-                TextButton(
-                    onClick = { setDrafts.add((setDrafts.lastOrNull() ?: SetDraft()).copy()) }
+                FilledTonalButton(
+                    onClick = { setDrafts.add((setDrafts.lastOrNull() ?: SetDraft()).copy()) },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
-                    Text("세트 추가")
+                    Text("세트 추가", modifier = Modifier.padding(start = 6.dp))
                 }
                 OutlinedTextField(
                     value = note,
