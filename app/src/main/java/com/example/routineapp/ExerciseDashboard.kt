@@ -95,6 +95,7 @@ fun ExerciseDashboard(
     cardioWorkouts: List<CardioWorkout>,
     strengthRoutines: List<RoutineEntity>,
     hasExercisePermission: Boolean,
+    areHealthPermissionsChecked: Boolean,
     hasDistancePermission: Boolean,
     missingAdvancedMetrics: List<String>,
     isRefreshing: Boolean,
@@ -132,15 +133,15 @@ fun ExerciseDashboard(
                 }
             }
 
-            if (!hasExercisePermission) {
+            if (areHealthPermissionsChecked && !hasExercisePermission) {
                 item {
                     MissingHealthPermissionCard(onRequestPermission)
                 }
-            } else if (!hasDistancePermission) {
+            } else if (areHealthPermissionsChecked && !hasDistancePermission) {
                 item {
                     MissingDistancePermissionCard(onRequestPermission)
                 }
-            } else if (missingAdvancedMetrics.isNotEmpty()) {
+            } else if (areHealthPermissionsChecked && missingAdvancedMetrics.isNotEmpty()) {
                 item {
                     MissingAdvancedMetricsPermissionCard(missingAdvancedMetrics, onRequestPermission)
                 }

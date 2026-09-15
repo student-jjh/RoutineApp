@@ -48,6 +48,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditNote
@@ -204,6 +206,7 @@ private fun RoutineScreen(
     var hasCadencePermission by remember { mutableStateOf(false) }
     var hasElevationPermission by remember { mutableStateOf(false) }
     var hasCaloriesPermission by remember { mutableStateOf(false) }
+    var areHealthPermissionsChecked by remember { mutableStateOf(false) }
     val hasHealthPermission = healthPermissions.all {
         when (it) {
             exerciseReadPermission -> hasExercisePermission
@@ -221,13 +224,8 @@ private fun RoutineScreen(
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = PermissionController.createRequestPermissionResultContract()
-    ) { grantedPermissions ->
-        hasExercisePermission = exerciseReadPermission in grantedPermissions
-        hasDistancePermission = distanceReadPermission in grantedPermissions
-        hasHeartRatePermission = heartRateReadPermission in grantedPermissions
-        hasCadencePermission = cadenceReadPermission in grantedPermissions
-        hasElevationPermission = elevationReadPermission in grantedPermissions
-        hasCaloriesPermission = caloriesReadPermission in grantedPermissions
+    ) {
+        onRefreshHealth()
     }
 
     LaunchedEffect(dao) {
@@ -274,6 +272,7 @@ private fun RoutineScreen(
             hasCadencePermission = cadenceReadPermission in granted
             hasElevationPermission = elevationReadPermission in granted
             hasCaloriesPermission = caloriesReadPermission in granted
+            areHealthPermissionsChecked = true
         }
     }
 
@@ -475,7 +474,7 @@ private fun RoutineScreen(
                         selectedTab = 0
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.Default.Today, contentDescription = "오늘", modifier = Modifier.size(30.dp)) },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "오늘", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -485,7 +484,7 @@ private fun RoutineScreen(
                         selectedTab = 1
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "루틴 설정", modifier = Modifier.size(30.dp)) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "루틴 설정", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -495,7 +494,7 @@ private fun RoutineScreen(
                         selectedTab = 2
                         focusedRoutineId = null
                     },
-                    icon = { Icon(Icons.AutoMirrored.Filled.DirectionsRun, contentDescription = "운동", modifier = Modifier.size(30.dp)) },
+                    icon = { Icon(Icons.Default.FitnessCenter, contentDescription = "운동", modifier = Modifier.size(30.dp)) },
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
@@ -583,7 +582,7 @@ private fun RoutineScreen(
             val needsHealthConnectUpdate =
                 healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
-            if (!hasHealthPermission) OutlinedButton(
+            if (!hasHealthPermission && (areHealthPermissionsChecked || !healthConnectAvailable)) OutlinedButton(
                 onClick = {
                     when {
                         healthConnectAvailable && healthConnectClient != null -> {
@@ -629,7 +628,7 @@ private fun RoutineScreen(
                     }
                 )
             }
-            if (!hasHealthPermission && healthConnectAvailable) {
+            if (areHealthPermissionsChecked && !hasHealthPermission && healthConnectAvailable) {
                 Text(
                     if (hasExercisePermission && hasDistancePermission) {
                         "유산소 세부 지표에 필요한 권한을 확인해주세요."
@@ -650,7 +649,7 @@ private fun RoutineScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            if (!hasHealthPermission) healthConnectMessage?.let { message ->
+            if (areHealthPermissionsChecked && !hasHealthPermission) healthConnectMessage?.let { message ->
                 Text(
                     message,
                     style = MaterialTheme.typography.bodySmall,
@@ -845,6 +844,7 @@ private fun RoutineScreen(
                         it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
                     },
                     hasExercisePermission = hasExercisePermission,
+                    areHealthPermissionsChecked = areHealthPermissionsChecked,
                     hasDistancePermission = hasDistancePermission,
                     missingAdvancedMetrics = buildList {
                         if (!hasHeartRatePermission) add("심박")
