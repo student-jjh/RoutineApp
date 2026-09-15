@@ -153,6 +153,10 @@ private fun RoutineScreen(
     onRefreshHealth: () -> Unit
 ) {
     val context = LocalContext.current
+    val guidePreferences = remember(context) { context.getSharedPreferences("user_guide", Context.MODE_PRIVATE) }
+    var showGuide by androidx.compose.runtime.saveable.rememberSaveable {
+        mutableStateOf(!guidePreferences.getBoolean("seen", false))
+    }
     val dao = database.routineDao()
     val completionDao = database.routineCompletionDao()
     val strengthRecordDao = database.strengthRecordDao()
@@ -571,6 +575,9 @@ private fun RoutineScreen(
             Spacer(Modifier.height(18.dp))
 
             if (selectedTab == 1) {
+                TextButton(onClick = { showGuide = true }, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) {
+                    Text("사용 가이드")
+                }
                 Button(
                     onClick = { isAdding = true },
                     modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -860,6 +867,13 @@ private fun RoutineScreen(
             }
         }
     }
+    }
+
+    if (showGuide) {
+        OnboardingScreen(onFinish = {
+            guidePreferences.edit().putBoolean("seen", true).apply()
+            showGuide = false
+        })
     }
 
     if (isAdding) {
