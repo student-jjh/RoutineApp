@@ -64,6 +64,7 @@ Routive brings your daily checklist and workout notebook together. Plan what mat
         <li>General and exercise categories.</li>
         <li>Individual days, weekdays, weekends, or every day.</li>
         <li>Exercise type and minimum-duration rules.</li>
+        <li>Time-of-day tags with color-coded icons and filters on Today and My Routines.</li>
         <li>Long-press and drag cards to reorder. Your order is saved.</li>
       </ul>
     </td>
@@ -245,7 +246,7 @@ Routines, completion history, strength records, custom exercises, and routine or
 <br />
 
 - Update with the **same Application ID and signing key** to generally preserve existing app data.
-- Database changes use migrations; the current database version is `10`.
+- Database changes use migrations; the current database version is `11`.
 - Uninstalling the app or clearing its storage deletes local data.
 - Debug APKs built in different development environments may use different keys and fail to install as updates.
 - Keep the signing key consistent and increment `versionCode` for ongoing tester releases.

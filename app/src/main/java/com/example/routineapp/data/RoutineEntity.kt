@@ -18,5 +18,7 @@ data class RoutineEntity(
     @ColumnInfo(defaultValue = "0")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(defaultValue = "0")
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    @ColumnInfo(defaultValue = "'ANYTIME'")
+    val timeOfDay: String = "ANYTIME"
 )

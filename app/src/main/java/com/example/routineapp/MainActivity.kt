@@ -171,6 +171,8 @@ private fun RoutineScreen(
     var editingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
+    var todayTimeFilter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var routineTimeFilter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     var focusedRoutineId by remember { mutableStateOf<Long?>(null) }
     var recordingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     val installedOn = remember(context) { appInstalledDate(context) }
@@ -624,6 +626,8 @@ private fun RoutineScreen(
 
             val todayDay = DayOfWeek.from(java.time.LocalDate.now())
             val todayRoutines = routines.filter { it.activeDays.split(",").contains(todayDay.name) }
+            val visibleTodayRoutines = todayRoutines.filter { todayTimeFilter == null || it.timeOfDay == todayTimeFilter }
+            val visibleRoutines = routines.filter { routineTimeFilter == null || it.timeOfDay == routineTimeFilter }
             if (selectedTab == 0) {
                 val todayText = LocalDate.now().toString()
                 val completedToday = todayRoutines.count { routine ->
@@ -695,7 +699,7 @@ private fun RoutineScreen(
                                 Text("루틴", style = MaterialTheme.typography.titleLarge)
                                 Spacer(Modifier.weight(1f))
                                 Text(
-                                    "${todayRoutines.size}개",
+                                    "${visibleTodayRoutines.size}개",
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -716,15 +720,18 @@ private fun RoutineScreen(
                                 }
                             }
                         }
-                        if (todayRoutines.isEmpty()) {
+                        item {
+                            RoutineTimeTagSelector(todayTimeFilter, onSelect = { todayTimeFilter = it; focusedRoutineId = null })
+                        }
+                        if (visibleTodayRoutines.isEmpty()) {
                             item {
                                 Text(
-                                    "오늘 예정된 루틴이 없습니다.",
+                                    if (todayTimeFilter == null) "오늘 예정된 루틴이 없습니다." else "이 시간대에 예정된 루틴이 없습니다.",
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
                         } else {
-                        items(todayRoutines, key = { it.id }) { routine ->
+                        items(visibleTodayRoutines, key = { it.id }) { routine ->
                             RoutineCard(
                                 routine = routine,
                                 isCompleted = completions.any {
@@ -776,15 +783,19 @@ private fun RoutineScreen(
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text("전체 루틴", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.weight(1f))
-                    Text("${routines.size}개", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${visibleRoutines.size}개", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                RoutineTimeTagSelector(routineTimeFilter, onSelect = { routineTimeFilter = it })
                 Spacer(Modifier.height(10.dp))
-                if (routines.isEmpty()) {
-                    Text("등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
+                if (visibleRoutines.isEmpty()) {
+                    Text(if (routineTimeFilter == null) "등록된 루틴이 없습니다." else "이 시간대에 등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
                 } else {
                     ReorderableRoutineList(
-                        routines = routines.toList(),
-                        onReorder = { ids -> scope.launch { dao.reorder(ids) } }
+                        routines = visibleRoutines,
+                        onReorder = { ids ->
+                            val order = mergeRoutineOrder(routines.map { it.id }, ids)
+                            scope.launch { dao.reorder(order) }
+                        }
                     ) { routine ->
                             RoutineCard(
                                 routine = routine,
@@ -880,8 +891,9 @@ private fun RoutineScreen(
     if (isAdding) {
         RoutineDialog(
             title = "루틴 추가",
+            initialTimeOfDay = (if (selectedTab == 0) todayTimeFilter else routineTimeFilter) ?: "ANYTIME",
             onDismiss = { isAdding = false },
-            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays, timeOfDay ->
                 scope.launch {
                     dao.insert(
                         RoutineEntity(
@@ -891,7 +903,8 @@ private fun RoutineScreen(
                             activeDays = activeDays,
                             exerciseType = exerciseType,
                             minimumDurationMinutes = minimumDuration,
-                            sortOrder = (routines.maxOfOrNull { it.sortOrder } ?: -1) + 1
+                            sortOrder = (routines.maxOfOrNull { it.sortOrder } ?: -1) + 1,
+                            timeOfDay = timeOfDay
                         )
                     )
                 }
@@ -909,8 +922,9 @@ private fun RoutineScreen(
             initialActiveDays = routine.activeDays,
             initialExerciseType = routine.exerciseType,
             initialMinimumDuration = routine.minimumDurationMinutes,
+            initialTimeOfDay = routine.timeOfDay,
             onDismiss = { editingRoutine = null },
-            onSave = { name, description, category, exerciseType, minimumDuration, activeDays ->
+            onSave = { name, description, category, exerciseType, minimumDuration, activeDays, timeOfDay ->
                 val index = routines.indexOfFirst { it.id == routine.id }
                 if (index >= 0) {
                     scope.launch {
@@ -921,7 +935,8 @@ private fun RoutineScreen(
                                 category = category,
                                 activeDays = activeDays,
                                 exerciseType = exerciseType,
-                                minimumDurationMinutes = minimumDuration
+                                minimumDurationMinutes = minimumDuration,
+                                timeOfDay = timeOfDay
                             )
                         )
                     }
@@ -988,6 +1003,7 @@ private fun RoutineCard(
     showActions: Boolean = !compact
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val timeTag = RoutineTimeTag.from(routine.timeOfDay)
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1026,18 +1042,14 @@ private fun RoutineCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (routine.category == "EXERCISE") {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
+                    color = timeTag.color.copy(alpha = 0.12f),
                     modifier = Modifier.size(38.dp)
                 ) {
                     Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
                         Icon(
                             imageVector = if (routine.category == "EXERCISE") Icons.Default.FitnessCenter else Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = timeTag.color,
                             modifier = Modifier.size(19.dp)
                         )
                     }
@@ -1045,7 +1057,7 @@ private fun RoutineCard(
                 Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(routine.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (routine.category == "EXERCISE") {
+                        "${timeTag.label} · " + if (routine.category == "EXERCISE") {
                             "${exerciseTypeLabel(routine.exerciseType)} · ${routine.minimumDurationMinutes}분 이상"
                         } else {
                             categoryLabel(routine.category)
@@ -1130,8 +1142,9 @@ private fun RoutineDialog(
     initialActiveDays: String = ALL_DAYS,
     initialExerciseType: String = "ANY",
     initialMinimumDuration: Int = 0,
+    initialTimeOfDay: String = "ANYTIME",
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Int, String) -> Unit
+    onSave: (String, String, String, String, Int, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var description by remember { mutableStateOf(initialDescription) }
@@ -1141,6 +1154,7 @@ private fun RoutineDialog(
     var exerciseType by remember { mutableStateOf(initialExerciseType) }
     var exerciseTypeExpanded by remember { mutableStateOf(false) }
     var minimumDuration by remember { mutableStateOf(initialMinimumDuration.toString()) }
+    var timeOfDay by remember { mutableStateOf(initialTimeOfDay) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1227,6 +1241,8 @@ private fun RoutineDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                Text("시간대", style = MaterialTheme.typography.labelLarge)
+                RoutineTimeTagSelector(timeOfDay, onSelect = { timeOfDay = it ?: "ANYTIME" }, includeAll = false)
                 Text("적용 요일", style = MaterialTheme.typography.labelLarge)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1277,7 +1293,8 @@ private fun RoutineDialog(
                         category,
                         exerciseType.trim().ifBlank { "ANY" },
                         minimumDuration.toIntOrNull() ?: 0,
-                        DayOfWeek.values().filter { it.name in activeDays }.joinToString(",") { it.name }
+                        DayOfWeek.values().filter { it.name in activeDays }.joinToString(",") { it.name },
+                        timeOfDay
                     )
                 },
                 enabled = name.isNotBlank()
