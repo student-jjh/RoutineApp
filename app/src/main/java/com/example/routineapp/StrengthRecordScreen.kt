@@ -46,6 +46,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.routineapp.data.CustomExerciseEntity
@@ -537,11 +544,8 @@ private fun StrengthRecordDialog(
         (it.weight.isBlank() || (weight != null && weight > 0)) && reps != null && reps > 0
     }
 
-    AlertDialog(
+    StrengthEntryScreen(
         onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Column {
                 Text(
@@ -549,7 +553,7 @@ private fun StrengthRecordDialog(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Text(
-                    "오늘의 세트와 컨디션을 남겨보세요",
+                    routine.name,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 3.dp)
@@ -559,7 +563,7 @@ private fun StrengthRecordDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text("운동 정보", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                 Text(routine.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -742,6 +746,7 @@ private fun StrengthRecordDialog(
         },
         confirmButton = {
             Button(
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 enabled = validDate && exerciseName.isNotBlank() && validSets,
                 onClick = {
                     val firstSet = setDrafts.first()
@@ -768,10 +773,58 @@ private fun StrengthRecordDialog(
                     }
                     onSave(record, sets)
                 }
-            ) { Text("저장") }
+            ) { Text("${setDrafts.size}세트 저장") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
     )
+}
+
+@Composable
+private fun StrengthEntryScreen(
+    onDismissRequest: () -> Unit,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        val dialogView = LocalView.current
+        DisposableEffect(dialogView) {
+            val window = (dialogView.parent as? DialogWindowProvider)?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, dialogView) }
+            controller?.isAppearanceLightStatusBars = true
+            controller?.isAppearanceLightNavigationBars = true
+            onDispose { }
+        }
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismissRequest) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "기록 작성 닫기")
+                    }
+                    Column(Modifier.weight(1f).padding(start = 8.dp)) { title() }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp)) { text() }
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        dismissButton()
+                        Box(Modifier.weight(1f)) { confirmButton() }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fun muscleGroupLabel(group: String): String = when (group) {

@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Today
@@ -969,6 +971,7 @@ private fun RoutineCard(
     compact: Boolean = false,
     showActions: Boolean = !compact
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1034,6 +1037,23 @@ private fun RoutineCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (!showCompletionStatus) Text(
+                        routine.activeDays.split(",").mapNotNull { day ->
+                            runCatching { todayDayLabel(DayOfWeek.valueOf(day)) }.getOrNull()
+                        }.joinToString(" · "),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                if (!showCompletionStatus) Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "루틴 메뉴")
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("수정") }, onClick = { menuExpanded = false; onEdit() })
+                        DropdownMenuItem(text = { Text("삭제") }, onClick = { menuExpanded = false; onDelete() })
+                    }
                 }
                 if (onRecord != null) {
                     IconButton(onClick = onRecord, modifier = Modifier.size(40.dp)) {
@@ -1063,10 +1083,12 @@ private fun RoutineCard(
                 Text(
                     routine.description,
                     style = MaterialTheme.typography.bodyMedium,
+                    maxLines = if (showCompletionStatus) Int.MAX_VALUE else 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            if (showActions) Row(
+            if (showActions && showCompletionStatus) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
