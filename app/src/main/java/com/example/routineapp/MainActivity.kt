@@ -219,7 +219,6 @@ private fun RoutineScreen(
     }
     var todayWorkouts by remember { mutableStateOf<List<ExerciseSessionRecord>>(emptyList()) }
     var cardioWorkouts by remember { mutableStateOf<List<CardioWorkout>>(emptyList()) }
-    var healthConnectMessage by remember { mutableStateOf<String?>(null) }
     var isHealthRefreshing by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -382,13 +381,6 @@ private fun RoutineScreen(
                     it.startTime >= todayStart && it.startTime < tomorrowStart
                 }
                 cardioWorkouts = loadedCardioWorkouts
-                healthConnectMessage = if (todayWorkouts.isEmpty()) {
-                    "Health Connect에 오늘 운동 세션이 아직 없습니다."
-                } else {
-                    "오늘 운동 데이터를 새로 확인했습니다."
-                }
-            }.onFailure { error ->
-                healthConnectMessage = "운동 데이터를 읽지 못했습니다: ${error.message ?: "알 수 없는 오류"}"
             }
         }
         isHealthRefreshing = false
@@ -582,79 +574,34 @@ private fun RoutineScreen(
             val needsHealthConnectUpdate =
                 healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
 
-            if (!hasHealthPermission && (areHealthPermissionsChecked || !healthConnectAvailable)) OutlinedButton(
+            if (!healthConnectAvailable && areHealthPermissionsChecked) OutlinedButton(
                 onClick = {
-                    when {
-                        healthConnectAvailable && healthConnectClient != null -> {
-                            runCatching {
-                                if (hasExercisePermission && hasDistancePermission) {
-                                    context.startActivity(
-                                        Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
-                                            .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
-                                    )
-                                } else {
-                                    permissionLauncher.launch(healthPermissions)
-                                }
-                            }.onSuccess {
-                                healthConnectMessage = "Health Connect 권한 화면을 여는 중입니다."
-                            }.onFailure {
-                                healthConnectMessage = "권한 화면을 열 수 없습니다: ${it.message}"
-                            }
-                        }
-                        else -> {
-                            val webIntent = Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
-                            )
-                            runCatching { context.startActivity(webIntent) }
-                                .onSuccess {
-                                    healthConnectMessage = "Health Connect 설치 페이지를 여는 중입니다."
-                                }
-                                .onFailure {
-                                    healthConnectMessage = "설치 페이지를 열 수 없습니다: ${it.message}"
-                                }
-                        }
-                    }
+                    val webIntent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
+                    )
+                    context.startActivity(webIntent)
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    when {
-                        hasHealthPermission -> "Health Connect 연결됨"
-                        needsHealthConnectUpdate -> "Health Connect 업데이트"
-                        hasExercisePermission && hasDistancePermission -> "Health Connect 권한 관리"
-                        healthConnectAvailable -> "운동 데이터 연결"
-                        else -> "Health Connect 설치"
-                    }
-                )
+                Text(if (needsHealthConnectUpdate) "Health Connect 업데이트" else "Health Connect 설치")
             }
-            if (areHealthPermissionsChecked && !hasHealthPermission && healthConnectAvailable) {
-                Text(
-                    if (hasExercisePermission && hasDistancePermission) {
-                        "유산소 세부 지표에 필요한 권한을 확인해주세요."
-                    } else {
-                        "자동 체크와 유산소 통계를 위해 운동·거리 권한을 허용해주세요."
+            if (areHealthPermissionsChecked && healthConnectAvailable && !hasHealthPermission) {
+                OutlinedButton(
+                    onClick = {
+                        if (hasExercisePermission && hasDistancePermission) {
+                            context.startActivity(
+                                Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS")
+                                    .putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)
+                            )
+                        } else {
+                            permissionLauncher.launch(healthPermissions)
+                        }
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            } else if (!healthConnectAvailable) {
-                Text(
-                    if (needsHealthConnectUpdate) {
-                        "Health Connect를 업데이트한 후 다시 시도해주세요."
-                    } else {
-                        "Health Connect 설치 후 운동 데이터를 연결할 수 있습니다."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-            if (areHealthPermissionsChecked && !hasHealthPermission) healthConnectMessage?.let { message ->
-                Text(
-                    message,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Health Connect 권한 설정")
+                }
             }
             }
 
@@ -737,6 +684,12 @@ private fun RoutineScreen(
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                IconButton(
+                                    onClick = { isAdding = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "루틴 추가", modifier = Modifier.size(22.dp))
+                                }
                             }
                         }
                         if (todayRoutines.isEmpty()) {
