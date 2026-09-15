@@ -5,11 +5,12 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RoutineDao {
-    @Query("SELECT * FROM routines ORDER BY id DESC")
+    @Query("SELECT * FROM routines ORDER BY sortOrder ASC, id DESC")
     fun observeAll(): Flow<List<RoutineEntity>>
 
     @Insert
@@ -20,4 +21,12 @@ interface RoutineDao {
 
     @Delete
     suspend fun delete(routine: RoutineEntity)
+
+    @Query("UPDATE routines SET sortOrder = :position WHERE id = :id")
+    suspend fun updatePosition(id: Long, position: Int)
+
+    @Transaction
+    suspend fun reorder(ids: List<Long>) {
+        ids.forEachIndexed { index, id -> updatePosition(id, index) }
+    }
 }

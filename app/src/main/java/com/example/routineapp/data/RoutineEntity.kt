@@ -16,5 +16,7 @@ data class RoutineEntity(
     val muscleGroup: String = "FULL_BODY",
     val lastCompletedDate: String? = null,
     @ColumnInfo(defaultValue = "0")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0")
+    val sortOrder: Int = 0
 )

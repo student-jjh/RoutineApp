@@ -782,8 +782,10 @@ private fun RoutineScreen(
                 if (routines.isEmpty()) {
                     Text("등록된 루틴이 없습니다.", style = MaterialTheme.typography.bodyLarge)
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(routines, key = { it.id }) { routine ->
+                    ReorderableRoutineList(
+                        routines = routines.toList(),
+                        onReorder = { ids -> scope.launch { dao.reorder(ids) } }
+                    ) { routine ->
                             RoutineCard(
                                 routine = routine,
                                 isCompleted = false,
@@ -811,7 +813,6 @@ private fun RoutineScreen(
                                     editingRoutine = routine
                                 }
                             )
-                        }
                     }
                 }
             } else if (selectedTab == 2) {
@@ -889,7 +890,8 @@ private fun RoutineScreen(
                             category = category,
                             activeDays = activeDays,
                             exerciseType = exerciseType,
-                            minimumDurationMinutes = minimumDuration
+                            minimumDurationMinutes = minimumDuration,
+                            sortOrder = (routines.maxOfOrNull { it.sortOrder } ?: -1) + 1
                         )
                     )
                 }

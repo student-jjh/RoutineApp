@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         StrengthSetEntity::class,
         CustomExerciseEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,11 +41,19 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
-                    MIGRATION_8_9
+                    MIGRATION_8_9,
+                    MIGRATION_9_10
                 )
                     .build()
                     .also { instance = it }
             }
+
+        private val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE routines ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("UPDATE routines SET sortOrder = (SELECT COUNT(*) FROM routines AS newer WHERE newer.id > routines.id)")
+            }
+        }
 
         private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(
