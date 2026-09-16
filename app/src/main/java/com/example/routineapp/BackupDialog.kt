@@ -29,6 +29,8 @@ import com.example.routineapp.data.AppDatabase
 import com.example.routineapp.data.RoutineBackup
 import com.example.routineapp.data.RoutineBackupCodec
 import com.example.routineapp.data.RoutineBackupRepository
+import com.example.routineapp.data.SupabaseConfig
+import com.example.routineapp.data.SupabaseConnection
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,6 +52,11 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
     var pending by remember { mutableStateOf<RoutineBackup?>(null) }
     // File contents stay in memory, never in saved-instance-state or logs.
     var pickerOpen by rememberSaveable { mutableStateOf(false) }
+    var cloudStatus by remember { mutableStateOf<String?>(null) }
+    val cloudConfig = remember {
+        if (BuildConfig.SUPABASE_URL.isBlank()) null
+        else SupabaseConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+    }
 
     fun perform(failure: String, block: suspend () -> Unit) {
         busy = true
@@ -123,6 +130,22 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                             message = "파일 선택기를 열지 못했어요."
                         }
                     }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("백업 파일 가져오기") }
+                    if (cloudConfig != null) {
+                        SupabaseAccountSection(cloudConfig)
+                        Text("클라우드 백업은 로그인 기능 검증 후 다음 단계에서 연결해요.", style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = enabled, onClick = {
+                            cloudStatus = null
+                            perform("서버에 연결하지 못했어요. 네트워크나 프로젝트 상태를 확인해 주세요. 로컬 기록은 그대로 유지돼요.") {
+                                val result = SupabaseConnection.check(cloudConfig)
+                                cloudStatus = if (result.googleEnabled) {
+                                    "서버 응답 정상 · Google 제공자 활성화됨. 앱 로그인·백업 연결은 아직 준비 중이에요."
+                                } else {
+                                    "서버 응답 정상 · Supabase의 Google 로그인 설정이 필요해요."
+                                }
+                            }
+                        }) { Text("서버 연결 확인") }
+                        cloudStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
                 } else {
                     Text("${backupTimeLabel(preview.exportedAt)} 백업")
                     Text("루틴 ${preview.routines.size}개 · 완료 이력 ${preview.completions.size}개\n근력 기록 ${preview.records.size}개 · 세트 ${preview.sets.size}개\n추가 운동 종목 ${preview.exercises.size}개")
