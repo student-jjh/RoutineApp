@@ -60,7 +60,6 @@ fun SupabaseAccountSection(config: SupabaseConfig) {
         Text("계정 연결", style = MaterialTheme.typography.titleSmall)
         if (session != null) {
             Text("${session!!.user.email ?: "이메일 계정"}으로 로그인됨", style = MaterialTheme.typography.bodyMedium)
-            Text("로그인만 연결된 상태예요. 클라우드 백업은 다음 단계에서 추가해요.", style = MaterialTheme.typography.bodySmall)
             TextButton(enabled = !busy, onClick = {
                 busy = true
                 scope.launch {
