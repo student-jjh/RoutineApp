@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -49,6 +52,7 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
     val scope = rememberCoroutineScope()
     val preferences = remember { context.getSharedPreferences("backup_status", 0) }
     var lastExport by remember { mutableStateOf(preferences.getString("lastExport", null)) }
+    var lastCloudBackup by remember { mutableStateOf(preferences.getString("lastCloudBackup", null)) }
     var busy by remember { mutableStateOf(false) }
     var message by rememberSaveable { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<RoutineBackup?>(null) }
@@ -109,10 +113,21 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (preview == null) {
-                    Text("루틴과 완료 이력, 근력 운동 기록, 직접 추가한 운동 종목을 파일로 보관하세요.")
+                    Text("기록을 안전하게 보관하고 새 기기에서 복원하세요.")
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("최근 백업", style = MaterialTheme.typography.titleSmall)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                BackupStatusItem("클라우드", lastCloudBackup, Modifier.weight(1f))
+                                BackupStatusItem("파일", lastExport, Modifier.weight(1f))
+                            }
+                        }
+                    }
                     if (cloudConfig != null) {
                         SupabaseAccountSection(cloudConfig)
-                        Text("로그인한 계정에 최신 백업 1개를 보관해요.", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(enabled = enabled, onClick = {
                                 perform("클라우드 백업 설정을 확인해 주세요.") {
@@ -120,6 +135,9 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                                     val data = repository.snapshot(installedOn)
                                     val content = RoutineBackupCodec.encode(data)
                                     cloudBackup?.upload(session, content)
+                                    val now = Instant.now().toString()
+                                    preferences.edit().putString("lastCloudBackup", now).apply()
+                                    lastCloudBackup = now
                                     message = "클라우드에 백업했어요."
                                 }
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 백업") }
@@ -133,7 +151,6 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 복원") }
                         }
                     }
-                    lastExport?.let { Text("마지막 파일 저장: ${backupTimeLabel(it)}", style = MaterialTheme.typography.labelMedium) }
                     Button(onClick = {
                         message = null
                         try {
@@ -183,3 +200,15 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
 private fun backupTimeLabel(value: String): String = runCatching {
     DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm").withZone(ZoneId.systemDefault()).format(Instant.parse(value))
 }.getOrDefault(value)
+
+@Composable
+private fun BackupStatusItem(label: String, timestamp: String?, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            timestamp?.let(::backupTimeLabel) ?: "없음",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (timestamp == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
