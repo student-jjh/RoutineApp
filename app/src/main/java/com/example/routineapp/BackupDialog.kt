@@ -109,6 +109,10 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                     Text("루틴과 완료 이력, 근력 운동 기록, 직접 추가한 운동 종목을 파일로 보관하세요.")
                     Text("백업 파일은 암호화되지 않으며 개인 운동 기록이 포함돼요. 공개된 곳에 공유하지 마세요.", style = MaterialTheme.typography.bodySmall)
                     Text("Health Connect 원본 데이터와 권한은 포함되지 않아요. 새 기기에서 다시 연결해 주세요.", style = MaterialTheme.typography.bodySmall)
+                    if (cloudConfig != null) {
+                        SupabaseAccountSection(cloudConfig)
+                        Text("클라우드 백업은 로그인 기능 검증 후 다음 단계에서 연결해요.", style = MaterialTheme.typography.bodySmall)
+                    }
                     lastExport?.let { Text("마지막 파일 저장: ${backupTimeLabel(it)}", style = MaterialTheme.typography.labelMedium) }
                     Button(onClick = {
                         message = null
@@ -131,8 +135,6 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                         }
                     }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text("백업 파일 가져오기") }
                     if (cloudConfig != null) {
-                        SupabaseAccountSection(cloudConfig)
-                        Text("클라우드 백업은 로그인 기능 검증 후 다음 단계에서 연결해요.", style = MaterialTheme.typography.bodySmall)
                         TextButton(enabled = enabled, onClick = {
                             cloudStatus = null
                             perform("서버에 연결하지 못했어요. 네트워크나 프로젝트 상태를 확인해 주세요. 로컬 기록은 그대로 유지돼요.") {
