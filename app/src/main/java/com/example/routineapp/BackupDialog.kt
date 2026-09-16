@@ -120,6 +120,7 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                                     val data = repository.snapshot(installedOn)
                                     val content = RoutineBackupCodec.encode(data)
                                     cloudBackup?.upload(session, content)
+                                    message = "클라우드에 백업했어요."
                                 }
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 백업") }
                             OutlinedButton(enabled = enabled, onClick = {
@@ -127,6 +128,7 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                                     val session = cloudAuth?.currentSession() ?: error("먼저 계정에 로그인해 주세요.")
                                     val content = cloudBackup?.download(session) ?: error("클라우드 설정이 없어요.")
                                     pending = withContext(Dispatchers.IO) { RoutineBackupCodec.decode(content) }
+                                    message = "클라우드 백업을 불러왔어요."
                                 }
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 복원") }
                         }
