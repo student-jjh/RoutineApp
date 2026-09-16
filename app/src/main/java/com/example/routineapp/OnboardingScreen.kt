@@ -35,7 +35,9 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     val pagerState = rememberPagerState(pageCount = { guidePages.size })
     Dialog(onDismissRequest = onFinish, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight()
+                .statusBarsPadding().navigationBarsPadding().padding(24.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("ROUTIVE · 사용 가이드", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                     TextButton(onClick = onFinish) { Text("건너뛰기") }
@@ -81,6 +83,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            }
             }
         }
     }

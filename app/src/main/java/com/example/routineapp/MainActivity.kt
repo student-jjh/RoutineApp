@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -472,9 +474,14 @@ private fun RoutineScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         bottomBar = {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(64.dp)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
             NavigationBar(
-                modifier = Modifier.height(64.dp),
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().height(64.dp),
+                containerColor = Color.Transparent,
                 tonalElevation = 0.dp
             ) {
                 NavigationBarItem(
@@ -518,12 +525,18 @@ private fun RoutineScreen(
                     colors = routiveNavigationColors()
                 )
             }
+            }
         }
     ) { innerPadding ->
+        Box(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentAlignment = androidx.compose.ui.Alignment.TopCenter
+        ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .fillMaxHeight()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -877,6 +890,7 @@ private fun RoutineScreen(
                     }
                 )
             }
+        }
         }
     }
     }

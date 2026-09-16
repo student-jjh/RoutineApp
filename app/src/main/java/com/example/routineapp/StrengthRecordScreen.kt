@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -117,8 +119,10 @@ fun StrengthRecordOverlay(
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             Column(
-                modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight()
+                    .statusBarsPadding().navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -293,6 +297,7 @@ fun StrengthRecordOverlay(
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -800,7 +805,9 @@ private fun StrengthEntryScreen(
             onDispose { }
         }
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight()
+                .statusBarsPadding().navigationBarsPadding().imePadding()) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -822,6 +829,7 @@ private fun StrengthEntryScreen(
                         Box(Modifier.weight(1f)) { confirmButton() }
                     }
                 }
+            }
             }
         }
     }

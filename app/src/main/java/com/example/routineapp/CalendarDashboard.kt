@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -131,6 +132,7 @@ fun CalendarDashboard(
         }
 
         item {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             MonthCalendar(
                 month = selectedMonth,
                 routines = routines,
@@ -138,8 +140,10 @@ fun CalendarDashboard(
                 today = today,
                 installedOn = installedOn,
                 selectedDate = selectedDate,
-                onDateSelected = { date -> selectedDate = date }
+                onDateSelected = { date -> selectedDate = date },
+                modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth()
             )
+            }
         }
 
         item { AchievementLegend() }
@@ -261,7 +265,8 @@ private fun MonthCalendar(
     today: LocalDate,
     installedOn: LocalDate,
     selectedDate: LocalDate,
-    onDateSelected: (LocalDate) -> Unit
+    onDateSelected: (LocalDate) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
     val cells = List<LocalDate?>(firstOffset) { null } +
@@ -270,6 +275,7 @@ private fun MonthCalendar(
     val completionKeys = completions.map { it.routineId to it.date }.toSet()
 
     Card(
+        modifier = modifier,
         shape = MaterialTheme.shapes.large,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
