@@ -110,18 +110,21 @@ import com.example.routineapp.data.StrengthSetEntity
 import com.example.routineapp.data.CustomExerciseEntity
 import com.example.routineapp.data.SupabaseConfig
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.Duration
 import java.time.DayOfWeek
 import java.time.YearMonth
 import java.time.Instant
+import com.example.routineapp.data.SupabaseAuth
 
 class MainActivity : ComponentActivity() {
     private var healthRefreshVersion by mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleSupabaseCallback(intent)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -140,6 +143,23 @@ class MainActivity : ComponentActivity() {
                     onRefreshHealth = { healthRefreshVersion++ }
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSupabaseCallback(intent)
+    }
+
+    private fun handleSupabaseCallback(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != "routive" || uri.host != "auth" || uri.path != "/callback") return
+        if (BuildConfig.SUPABASE_URL.isBlank()) return
+        val auth = SupabaseAuth(this, SupabaseConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY))
+        lifecycleScope.launch {
+            runCatching { auth.handleCallback(uri) }
+                .onFailure { /* The account screen remains available to show the error on a later attempt. */ }
         }
     }
 

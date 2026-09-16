@@ -1,11 +1,13 @@
 package com.example.routineapp.data
 
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
+import java.net.URLEncoder
 
 data class SupabaseUser(val id: String, val email: String?)
 
@@ -27,7 +29,8 @@ class SupabaseAuth(private val context: Context, private val config: SupabaseCon
 
     suspend fun signUp(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         validateCredentials(email, password)
-        val response = request("${config.url}/auth/v1/signup", "POST", JSONObject()
+        val redirect = URLEncoder.encode(REDIRECT_URI, Charsets.UTF_8.name())
+        val response = request("${config.url}/auth/v1/signup?redirect_to=$redirect", "POST", JSONObject()
             .put("email", email.trim())
             .put("password", password))
         val session = response.optJSONObject("session")?.let(::sessionFrom)
@@ -50,6 +53,18 @@ class SupabaseAuth(private val context: Context, private val config: SupabaseCon
             request("${config.url}/auth/v1/logout", "POST", null, it.accessToken)
         } }
         preferences.edit().clear().apply()
+    }
+
+    suspend fun handleCallback(uri: Uri): SupabaseSession = withContext(Dispatchers.IO) {
+        val values = parseCallbackValues(uri)
+        values["error_description"]?.let { error(Uri.decode(it)) }
+        val access = values["access_token"]?.takeIf { it.isNotBlank() }
+            ?: error("인증 링크에서 로그인 정보를 받지 못했어요.")
+        val refresh = values["refresh_token"]?.takeIf { it.isNotBlank() }
+            ?: error("인증 링크에서 갱신 정보를 받지 못했어요.")
+        val user = request("${config.url}/auth/v1/user", "GET", null, access)
+        val id = user.optString("id").takeIf { it.isNotBlank() } ?: error("사용자 정보를 받지 못했어요.")
+        SupabaseSession(access, refresh, SupabaseUser(id, user.optString("email").ifBlank { null })).also(::save)
     }
 
     private fun save(session: SupabaseSession) {
@@ -112,6 +127,18 @@ class SupabaseAuth(private val context: Context, private val config: SupabaseCon
         require(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$").matches(email.trim())) { "이메일 주소를 확인해 주세요." }
         require(password.length >= 6) { "비밀번호는 6자 이상이어야 해요." }
         require(password.length <= 128) { "비밀번호가 너무 길어요." }
+    }
+
+    private fun parseCallbackValues(uri: Uri): Map<String, String> {
+        val source = listOfNotNull(uri.fragment, uri.query).joinToString("&")
+        return source.split('&').mapNotNull { part ->
+            val separator = part.indexOf('=')
+            if (separator <= 0) null else Uri.decode(part.substring(0, separator)) to Uri.decode(part.substring(separator + 1))
+        }.toMap()
+    }
+
+    companion object {
+        const val REDIRECT_URI = "routive://auth/callback"
     }
 }
 
