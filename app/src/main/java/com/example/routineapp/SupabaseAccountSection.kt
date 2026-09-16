@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -22,6 +23,16 @@ import com.example.routineapp.data.SupabaseAuth
 import com.example.routineapp.data.SupabaseConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+@Composable
+fun SupabaseAccountDialog(config: SupabaseConfig, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("계정 연결") },
+        text = { SupabaseAccountSection(config) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("닫기") } }
+    )
+}
 
 @Composable
 fun SupabaseAccountSection(config: SupabaseConfig) {

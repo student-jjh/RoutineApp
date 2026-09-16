@@ -108,6 +108,7 @@ import com.example.routineapp.data.RoutineCompletionEntity
 import com.example.routineapp.data.StrengthRecordEntity
 import com.example.routineapp.data.StrengthSetEntity
 import com.example.routineapp.data.CustomExerciseEntity
+import com.example.routineapp.data.SupabaseConfig
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
@@ -180,6 +181,11 @@ private fun RoutineScreen(
     var recordingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
     var installedOn by remember(context) { mutableStateOf(appInstalledDate(context)) }
     var showBackup by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showAccount by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val supabaseConfig = remember {
+        if (BuildConfig.SUPABASE_URL.isBlank()) null
+        else SupabaseConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+    }
     LaunchedEffect(database) {
         val backupDao = database.backupDao()
         backupDao.initializeMetadata(com.example.routineapp.data.AppMetadataEntity("historyStart", appInstalledDate(context).toString()))
@@ -610,6 +616,7 @@ private fun RoutineScreen(
 
             if (selectedTab == 1) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showAccount = true }) { Text("계정 연결") }
                     TextButton(onClick = { showBackup = true }) { Text("백업 · 복원") }
                     TextButton(onClick = { showGuide = true }) { Text("사용 가이드") }
                 }
@@ -917,6 +924,19 @@ private fun RoutineScreen(
 
     if (showBackup) {
         BackupDialog(database, installedOn, onDismiss = { showBackup = false })
+    }
+
+    if (showAccount) {
+        if (supabaseConfig != null) {
+            SupabaseAccountDialog(supabaseConfig, onDismiss = { showAccount = false })
+        } else {
+            AlertDialog(
+                onDismissRequest = { showAccount = false },
+                title = { Text("계정 연결") },
+                text = { Text("Supabase 연결 설정이 없는 빌드예요.") },
+                confirmButton = { TextButton(onClick = { showAccount = false }) { Text("닫기") } }
+            )
+        }
     }
 
     if (showGuide) {
