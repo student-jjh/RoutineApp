@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +32,8 @@ import com.example.routineapp.data.RoutineBackupCodec
 import com.example.routineapp.data.RoutineBackupRepository
 import com.example.routineapp.data.SupabaseConfig
 import com.example.routineapp.data.SupabaseConnection
+import com.example.routineapp.data.SupabaseAuth
+import com.example.routineapp.data.SupabaseCloudBackup
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -57,6 +60,9 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
         if (BuildConfig.SUPABASE_URL.isBlank()) null
         else SupabaseConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
     }
+    val cloudAuth = remember(cloudConfig) { cloudConfig?.let { SupabaseAuth(context, it) } }
+    val cloudBackup = remember(cloudConfig) { cloudConfig?.let { SupabaseCloudBackup(it) } }
+    var cloudMessage by remember { mutableStateOf<String?>(null) }
 
     fun perform(failure: String, block: suspend () -> Unit) {
         busy = true
@@ -111,7 +117,28 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                     Text("Health Connect 원본 데이터와 권한은 포함되지 않아요. 새 기기에서 다시 연결해 주세요.", style = MaterialTheme.typography.bodySmall)
                     if (cloudConfig != null) {
                         SupabaseAccountSection(cloudConfig)
-                        Text("클라우드 백업은 로그인 기능 검증 후 다음 단계에서 연결해요.", style = MaterialTheme.typography.bodySmall)
+                        Text("로그인한 계정의 기록을 안전하게 보관하고 새 기기에서 복원할 수 있어요.", style = MaterialTheme.typography.bodySmall)
+                        Text("로그인한 계정의 최신 백업 1개를 보관해요. 백업은 사용자별로 분리돼요.", style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(enabled = enabled, onClick = {
+                                perform("클라우드에 저장하지 못했어요. 로그인 상태와 백업 권한을 확인해 주세요.") {
+                                    val session = cloudAuth?.currentSession() ?: error("먼저 계정에 로그인해 주세요.")
+                                    val data = repository.snapshot(installedOn)
+                                    val content = RoutineBackupCodec.encode(data)
+                                    cloudBackup?.upload(session, content)
+                                    cloudMessage = "클라우드에 백업했어요."
+                                }
+                            }, modifier = Modifier.weight(1f)) { Text("클라우드 백업") }
+                            OutlinedButton(enabled = enabled, onClick = {
+                                perform("클라우드에서 가져오지 못했어요. 로그인 상태와 백업 권한을 확인해 주세요.") {
+                                    val session = cloudAuth?.currentSession() ?: error("먼저 계정에 로그인해 주세요.")
+                                    val content = cloudBackup?.download(session) ?: error("클라우드 설정이 없어요.")
+                                    pending = withContext(Dispatchers.IO) { RoutineBackupCodec.decode(content) }
+                                    cloudMessage = "백업을 확인했어요. 아래에서 교체 여부를 결정해 주세요."
+                                }
+                            }, modifier = Modifier.weight(1f)) { Text("클라우드 복원") }
+                        }
+                        cloudMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                     lastExport?.let { Text("마지막 파일 저장: ${backupTimeLabel(it)}", style = MaterialTheme.typography.labelMedium) }
                     Button(onClick = {

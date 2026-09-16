@@ -20,7 +20,7 @@ Verification: existing unit tests plus `RoutineBackupTest` on an emulator cover 
 
 ## Phase 2 — Optional account and cloud backup
 
-Current progress: Supabase public client configuration, email/password sign-up, sign-in, sign-out, and native email-confirmation deep linking are implemented. The app remains usable without an account. Session refresh and cloud backup upload/restore are still pending.
+Current progress: Supabase public client configuration, email/password sign-up, sign-in, sign-out, native email-confirmation deep linking, and one-user/latest-snapshot cloud backup/restore are implemented. Run `supabase/storage-policies.sql` once before using cloud buttons. The app remains usable without an account. Session refresh is still pending.
 
 Before implementation, choose a backend owned by the app developer and configure its authentication project. Do not ship placeholders that imply working cloud protection.
 
