@@ -11,9 +11,10 @@ import androidx.room.RoomDatabase
         RoutineCompletionEntity::class,
         StrengthRecordEntity::class,
         StrengthSetEntity::class,
-        CustomExerciseEntity::class
+        CustomExerciseEntity::class,
+        AppMetadataEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun strengthRecordDao(): StrengthRecordDao
     abstract fun strengthSetDao(): StrengthSetDao
     abstract fun customExerciseDao(): CustomExerciseDao
+    abstract fun backupDao(): BackupDao
 
     companion object {
         @Volatile
@@ -43,11 +45,18 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_7_8,
                     MIGRATION_8_9,
                     MIGRATION_9_10,
-                    MIGRATION_10_11
+                    MIGRATION_10_11,
+                    MIGRATION_11_12
                 )
                     .build()
                     .also { instance = it }
             }
+
+        internal val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("CREATE TABLE IF NOT EXISTS app_metadata (`key` TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(`key`))")
+            }
+        }
 
         private val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
             override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {

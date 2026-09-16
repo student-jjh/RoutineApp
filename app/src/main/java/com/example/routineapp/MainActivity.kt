@@ -102,6 +102,7 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.example.routineapp.ui.theme.RoutineAppTheme
 import com.example.routineapp.data.AppDatabase
+import androidx.room.withTransaction
 import com.example.routineapp.data.RoutineEntity
 import com.example.routineapp.data.RoutineCompletionEntity
 import com.example.routineapp.data.StrengthRecordEntity
@@ -177,7 +178,15 @@ private fun RoutineScreen(
     var routineTimeFilter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     var focusedRoutineId by remember { mutableStateOf<Long?>(null) }
     var recordingRoutine by remember { mutableStateOf<RoutineEntity?>(null) }
-    val installedOn = remember(context) { appInstalledDate(context) }
+    var installedOn by remember(context) { mutableStateOf(appInstalledDate(context)) }
+    var showBackup by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(database) {
+        val backupDao = database.backupDao()
+        backupDao.initializeMetadata(com.example.routineapp.data.AppMetadataEntity("historyStart", appInstalledDate(context).toString()))
+        backupDao.observeHistoryStart().collect { value ->
+            value?.let { installedOn = LocalDate.parse(it) }
+        }
+    }
     val providerPackageName = "com.google.android.apps.healthdata"
     val healthConnectStatus = HealthConnectClient.getSdkStatus(context, providerPackageName)
     val healthConnectAvailable = healthConnectStatus == HealthConnectClient.SDK_AVAILABLE
@@ -406,50 +415,60 @@ private fun RoutineScreen(
     }
 
     LaunchedEffect(todayWorkouts, routines.toList()) {
-        val today = LocalDate.now().toString()
-        routines.toList().forEach { routine ->
-            val matched = todayWorkouts.any { workout ->
-                val typeMatches = routine.category == "EXERCISE" &&
-                    (routine.exerciseType == "ANY" ||
-                        routine.exerciseType == exerciseTypeCode(workout.exerciseType))
-                val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
-                typeMatches && durationMinutes >= routine.minimumDurationMinutes
-            }
-            if (matched && completions.none { it.routineId == routine.id && it.date == today }) {
-                completionDao.complete(
-                    RoutineCompletionEntity(
-                        routineId = routine.id,
-                        date = today,
-                        source = "HEALTH_CONNECT"
+        database.withTransaction {
+            // Read one consistent DB state: restore may invalidate the UI flows separately.
+            val savedRoutines = database.backupDao().routines()
+            val savedCompletions = database.backupDao().completions()
+            val today = LocalDate.now().toString()
+            savedRoutines.forEach { routine ->
+                val matched = todayWorkouts.any { workout ->
+                    val typeMatches = routine.category == "EXERCISE" &&
+                        (routine.exerciseType == "ANY" ||
+                            routine.exerciseType == exerciseTypeCode(workout.exerciseType))
+                    val durationMinutes = Duration.between(workout.startTime, workout.endTime).toMinutes()
+                    typeMatches && durationMinutes >= routine.minimumDurationMinutes
+                }
+                if (matched && savedCompletions.none { it.routineId == routine.id && it.date == today }) {
+                    completionDao.complete(
+                        RoutineCompletionEntity(
+                            routineId = routine.id,
+                            date = today,
+                            source = "HEALTH_CONNECT"
+                        )
                     )
-                )
+                }
             }
         }
     }
 
     LaunchedEffect(strengthRecords.toList(), routines.toList()) {
-        val today = LocalDate.now().toString()
-        routines.filter {
-            it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
-        }.forEach { routine ->
-            val hasTodayRecord = strengthRecords.any {
-                it.routineId == routine.id && it.performedDate == today
-            }
-            val completion = completions.firstOrNull {
-                it.routineId == routine.id && it.date == today
-            }
-            when {
-                hasTodayRecord && completion == null -> {
-                    completionDao.completeIfAbsent(
-                        RoutineCompletionEntity(
-                            routineId = routine.id,
-                            date = today,
-                            source = "STRENGTH_LOG"
-                        )
-                    )
+        database.withTransaction {
+            val savedRoutines = database.backupDao().routines()
+            val savedRecords = database.backupDao().records()
+            val savedCompletions = database.backupDao().completions()
+            val today = LocalDate.now().toString()
+            savedRoutines.filter {
+                it.category == "EXERCISE" && it.exerciseType == "STRENGTH_TRAINING"
+            }.forEach { routine ->
+                val hasTodayRecord = savedRecords.any {
+                    it.routineId == routine.id && it.performedDate == today
                 }
-                !hasTodayRecord && completion?.source == "STRENGTH_LOG" -> {
-                    completionDao.uncomplete(routine.id, today)
+                val completion = savedCompletions.firstOrNull {
+                    it.routineId == routine.id && it.date == today
+                }
+                when {
+                    hasTodayRecord && completion == null -> {
+                        completionDao.completeIfAbsent(
+                            RoutineCompletionEntity(
+                                routineId = routine.id,
+                                date = today,
+                                source = "STRENGTH_LOG"
+                            )
+                        )
+                    }
+                    !hasTodayRecord && completion?.source == "STRENGTH_LOG" -> {
+                        completionDao.uncomplete(routine.id, today)
+                    }
                 }
             }
         }
@@ -590,8 +609,9 @@ private fun RoutineScreen(
             Spacer(Modifier.height(18.dp))
 
             if (selectedTab == 1) {
-                TextButton(onClick = { showGuide = true }, modifier = Modifier.align(androidx.compose.ui.Alignment.End)) {
-                    Text("사용 가이드")
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showBackup = true }) { Text("백업 · 복원") }
+                    TextButton(onClick = { showGuide = true }) { Text("사용 가이드") }
                 }
                 Button(
                     onClick = { isAdding = true },
@@ -893,6 +913,10 @@ private fun RoutineScreen(
         }
         }
     }
+    }
+
+    if (showBackup) {
+        BackupDialog(database, installedOn, onDismiss = { showBackup = false })
     }
 
     if (showGuide) {

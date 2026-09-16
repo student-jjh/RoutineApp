@@ -268,12 +268,16 @@ Routines, completion history, strength records, custom exercises, and routine or
 <br />
 
 - Update with the **same Application ID and signing key** to generally preserve existing app data.
-- Database changes use migrations; the current database version is `11`.
+- Database changes use migrations; the current database version is `12`.
 - Uninstalling the app or clearing its storage deletes local data.
 - Debug APKs built in different development environments may use different keys and fail to install as updates.
 - Keep the signing key consistent and increment `versionCode` for ongoing tester releases.
 
-**Cloud synchronization and user-facing data export are not currently implemented.** Be careful before uninstalling an app containing important records.
+**File backup and restore:** open **My Routines → 백업 · 복원** to export a versioned JSON file or preview and restore one. Backups include routines, completion history, strength records and sets, custom exercises, and the original history start date. Restore replaces all existing records; it does not merge them. Invalid files are rejected, and database replacement runs in one transaction. Back up your current records before restoring another file.
+
+Files are **not encrypted** and contain personal exercise records. Store them privately and copy them off the old phone before changing devices. The current file limit is 20 MB. Health Connect source data and permissions are not exported; reconnect on the new device. Onboarding and device-specific settings are not included.
+
+**Optional account sign-in, automatic cloud backup, and multi-device synchronization are not yet implemented.** Android system backup is enabled but is not a substitute for a verified, current backup you control.
 
 </details>
 
