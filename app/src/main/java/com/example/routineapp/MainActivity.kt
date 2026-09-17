@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -601,6 +603,16 @@ private fun RoutineScreen(
                     alwaysShowLabel = false,
                     colors = routiveNavigationColors()
                 )
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = {
+                        selectedTab = 4
+                        focusedRoutineId = null
+                    },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "설정", modifier = Modifier.size(30.dp)) },
+                    alwaysShowLabel = false,
+                    colors = routiveNavigationColors()
+                )
             }
             }
         }
@@ -609,7 +621,7 @@ private fun RoutineScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = androidx.compose.ui.Alignment.TopCenter
         ) {
-        Column(
+                Column(
             modifier = Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
@@ -634,6 +646,7 @@ private fun RoutineScreen(
                             1 -> "내 루틴"
                             2 -> "운동"
                             3 -> "기록"
+                            4 -> "설정"
                             else -> "${todayDayLabel(DayOfWeek.from(LocalDate.now()))}요일"
                         },
                         style = MaterialTheme.typography.headlineSmall
@@ -667,11 +680,6 @@ private fun RoutineScreen(
             Spacer(Modifier.height(18.dp))
 
             if (selectedTab == 1) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { showAccount = true }) { Text("계정 연결") }
-                    TextButton(onClick = { showBackup = true }) { Text("백업 · 복원") }
-                    TextButton(onClick = { showGuide = true }) { Text("사용 가이드") }
-                }
                 Button(
                     onClick = { isAdding = true },
                     modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -682,35 +690,6 @@ private fun RoutineScreen(
                     Text("새 루틴 만들기", modifier = Modifier.padding(start = 8.dp))
                 }
                 Spacer(Modifier.height(12.dp))
-
-            val needsHealthConnectUpdate =
-                healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
-
-            if (!healthConnectAvailable && areHealthPermissionsChecked) OutlinedButton(
-                onClick = {
-                    val webIntent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
-                    )
-                    context.startActivity(webIntent)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (needsHealthConnectUpdate) "Health Connect 업데이트" else "Health Connect 설치")
-            }
-            if (areHealthPermissionsChecked && healthConnectAvailable && !hasHealthPermission) {
-                OutlinedButton(
-                    onClick = {
-                        if (hasExercisePermission && hasDistancePermission) {
-                            openHealthConnectPermissions()
-                        } else {
-                            permissionLauncher.launch(healthPermissions)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Health Connect 권한 설정")
-                }
             }
             }
 
@@ -734,7 +713,7 @@ private fun RoutineScreen(
                             onRefreshHealth()
                         }
                     },
-                    modifier = Modifier.weight(1f).fillMaxWidth()
+                    modifier = Modifier.fillMaxHeight().fillMaxWidth()
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -951,6 +930,29 @@ private fun RoutineScreen(
                     },
                     onOpenStrengthLog = { routine -> recordingRoutine = routine }
                 )
+            } else if (selectedTab == 4) {
+                SettingsDashboard(
+                    healthConnectAvailable = healthConnectAvailable,
+                    healthConnectStatus = healthConnectStatus,
+                    areHealthPermissionsChecked = areHealthPermissionsChecked,
+                    hasHealthPermission = hasHealthPermission,
+                    onOpenAccount = { showAccount = true },
+                    onOpenBackup = { showBackup = true },
+                    onOpenGuide = { showGuide = true },
+                    onInstallHealthConnect = {
+                        val webIntent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://play.google.com/store/apps/details?id=$providerPackageName")
+                        )
+                        context.startActivity(webIntent)
+                    },
+                    onOpenHealthPermissions = {
+                        if (healthConnectAvailable) {
+                            if (hasExercisePermission && hasDistancePermission) openHealthConnectPermissions()
+                            else permissionLauncher.launch(healthPermissions)
+                        }
+                    }
+                )
             } else {
                 CalendarDashboard(
                     routines = routines,
@@ -971,7 +973,6 @@ private fun RoutineScreen(
             }
         }
         }
-    }
     }
 
     if (showBackup) {
@@ -1106,6 +1107,103 @@ private fun routiveNavigationColors(): NavigationBarItemColors = NavigationBarIt
     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 )
+
+@Composable
+private fun SettingsDashboard(
+    healthConnectAvailable: Boolean,
+    healthConnectStatus: Int,
+    areHealthPermissionsChecked: Boolean,
+    hasHealthPermission: Boolean,
+    onOpenAccount: () -> Unit,
+    onOpenBackup: () -> Unit,
+    onOpenGuide: () -> Unit,
+    onInstallHealthConnect: () -> Unit,
+    onOpenHealthPermissions: () -> Unit
+) {
+    val needsHealthConnectUpdate =
+        healthConnectStatus == HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED
+    Column(
+        modifier = Modifier.fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("앱 관리", style = MaterialTheme.typography.titleLarge)
+        SettingsActionCard(
+            icon = Icons.Default.AccountCircle,
+            title = "계정 연결",
+            description = "기록을 기기에 안전하게 보관하고 클라우드와 동기화해요.",
+            onClick = onOpenAccount
+        )
+        SettingsActionCard(
+            icon = Icons.Default.CloudDone,
+            title = "백업 · 복원",
+            description = "자동 클라우드 백업과 파일 백업을 관리해요.",
+            onClick = onOpenBackup
+        )
+        SettingsActionCard(
+            icon = Icons.Default.AutoAwesome,
+            title = "사용 가이드",
+            description = "루티브의 핵심 기능을 다시 확인해요.",
+            onClick = onOpenGuide
+        )
+        Text("운동 데이터", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Health Connect", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    when {
+                        !areHealthPermissionsChecked -> "연결 상태를 확인하는 중이에요."
+                        !healthConnectAvailable -> "운동 데이터를 가져오려면 Health Connect가 필요해요."
+                        hasHealthPermission -> "운동 데이터 연결됨"
+                        else -> "운동 데이터 접근 권한이 필요해요."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (!healthConnectAvailable && areHealthPermissionsChecked) {
+                    OutlinedButton(onClick = onInstallHealthConnect, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (needsHealthConnectUpdate) "Health Connect 업데이트" else "Health Connect 설치")
+                    }
+                } else if (areHealthPermissionsChecked && !hasHealthPermission) {
+                    OutlinedButton(onClick = onOpenHealthPermissions, modifier = Modifier.fillMaxWidth()) {
+                        Text("권한 관리")
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun SettingsActionCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(10.dp))
+            }
+            Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Default.Edit, contentDescription = "열기", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
