@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -621,7 +622,7 @@ private fun RoutineScreen(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
             contentAlignment = androidx.compose.ui.Alignment.TopCenter
         ) {
-                Column(
+        Column(
             modifier = Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
@@ -691,7 +692,6 @@ private fun RoutineScreen(
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            }
 
             Spacer(Modifier.height(if (selectedTab == 1) 14.dp else 4.dp))
 
@@ -713,7 +713,7 @@ private fun RoutineScreen(
                             onRefreshHealth()
                         }
                     },
-                    modifier = Modifier.fillMaxHeight().fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -975,6 +975,7 @@ private fun RoutineScreen(
         }
     }
 
+    }
     if (showBackup) {
         BackupDialog(
             database,
@@ -1154,15 +1155,15 @@ private fun SettingsDashboard(
                 Text("Health Connect", style = MaterialTheme.typography.titleMedium)
                 Text(
                     when {
-                        !areHealthPermissionsChecked -> "연결 상태를 확인하는 중이에요."
                         !healthConnectAvailable -> "운동 데이터를 가져오려면 Health Connect가 필요해요."
+                        !areHealthPermissionsChecked -> "연결 상태를 확인하는 중이에요."
                         hasHealthPermission -> "운동 데이터 연결됨"
                         else -> "운동 데이터 접근 권한이 필요해요."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (!healthConnectAvailable && areHealthPermissionsChecked) {
+                if (!healthConnectAvailable) {
                     OutlinedButton(onClick = onInstallHealthConnect, modifier = Modifier.fillMaxWidth()) {
                         Text(if (needsHealthConnectUpdate) "Health Connect 업데이트" else "Health Connect 설치")
                     }
@@ -1200,7 +1201,7 @@ private fun SettingsActionCard(
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Icon(Icons.Default.Edit, contentDescription = "열기", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
