@@ -522,6 +522,7 @@ private fun StrengthRecordDialog(
     var muscleGroupExpanded by remember { mutableStateOf(false) }
     var exerciseName by remember { mutableStateOf(initialRecord?.exerciseName ?: "") }
     var exerciseExpanded by remember { mutableStateOf(false) }
+    var exerciseQuery by remember { mutableStateOf("") }
     var addingExercise by remember { mutableStateOf(false) }
     var customExerciseName by remember { mutableStateOf("") }
     var note by remember { mutableStateOf(initialRecord?.note ?: "") }
@@ -538,10 +539,12 @@ private fun StrengthRecordDialog(
         (EXERCISE_LIBRARY[muscleGroup].orEmpty() +
             customExercises.filter { it.muscleGroup == muscleGroup }.map { it.name }).distinct()
     }
-    val previousRecord = recentRecords.firstOrNull {
-        it.id != initialRecord?.id && it.muscleGroup == muscleGroup && it.exerciseName == exerciseName
-    }
-    val previousSets = allSets.filter { it.recordId == previousRecord?.id }
+    val selectedDate = runCatching { LocalDate.parse(performedDate) }.getOrNull()
+    val previousRecord = recentRecords.filter {
+        it.id != initialRecord?.id && it.muscleGroup == muscleGroup && it.exerciseName == exerciseName &&
+            selectedDate != null && runCatching { LocalDate.parse(it.performedDate).isBefore(selectedDate) }.getOrDefault(false)
+    }.maxWithOrNull(compareBy<StrengthRecordEntity> { it.performedDate }.thenBy { it.createdAt })
+    val previousSets = allSets.filter { it.recordId == previousRecord?.id }.sortedBy { it.setNumber }
     val validDate = runCatching { LocalDate.parse(performedDate) }.isSuccess
     val validSets = setDrafts.isNotEmpty() && setDrafts.all {
         val weight = it.weight.toDoubleOrNull()
@@ -624,13 +627,20 @@ private fun StrengthRecordDialog(
                     SelectionField(
                         label = "운동 종목",
                         value = if (exerciseName.isBlank()) "종목을 선택하세요" else exerciseName,
-                        onClick = { exerciseExpanded = true }
+                        onClick = { exerciseQuery = ""; exerciseExpanded = true }
                     )
                     DropdownMenu(
                         expanded = exerciseExpanded,
                         onDismissRequest = { exerciseExpanded = false }
                     ) {
-                        exerciseOptions.forEach { exercise ->
+                        OutlinedTextField(
+                            value = exerciseQuery,
+                            onValueChange = { exerciseQuery = it },
+                            label = { Text("종목 검색") },
+                            singleLine = true,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        exerciseOptions.filter { it.replace(" ", "").contains(exerciseQuery.replace(" ", ""), ignoreCase = true) }.forEach { exercise ->
                             DropdownMenuItem(
                                 text = { Text(exercise) },
                                 onClick = { exerciseName = exercise; exerciseExpanded = false }
@@ -664,6 +674,13 @@ private fun StrengthRecordDialog(
                     }
                 }
                 if (previousSets.isNotEmpty()) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("무게 참고 · ${previousRecord?.performedDate}", style = MaterialTheme.typography.titleSmall)
+                            Text(previousSets.joinToString(" · ") { setDisplayText(it) }, style = MaterialTheme.typography.bodyMedium)
+                            Text("과거 수행 기록이에요. 같은 장비·무게 표기 기준인지 확인하고 오늘 컨디션에 맞춰 조절하세요.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     FilledTonalButton(
                         onClick = {
                             setDrafts.clear()
@@ -672,6 +689,8 @@ private fun StrengthRecordDialog(
                             })
                         }
                     ) { Text("직전 ${previousSets.size}세트 불러오기") }
+                } else if (exerciseName.isNotBlank()) {
+                    Text("이 날짜 이전의 같은 종목 기록이 없어 무게를 제안할 수 없어요. 먼저 편안하게 수행할 수 있는 무게로 기록해 주세요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Column(modifier = Modifier.padding(top = 6.dp)) {
                     Text("세트별 기록", style = MaterialTheme.typography.titleMedium)
@@ -848,13 +867,29 @@ fun muscleGroupLabel(group: String): String = when (group) {
 private val MUSCLE_GROUPS = listOf("BACK", "LEGS", "SHOULDERS", "CHEST", "ARMS", "CORE", "FULL_BODY")
 
 private val EXERCISE_LIBRARY = mapOf(
-    "BACK" to listOf("랫풀다운", "풀업", "바벨 로우", "시티드 로우", "원암 덤벨 로우", "데드리프트"),
-    "LEGS" to listOf("스쿼트", "레그 프레스", "레그 익스텐션", "레그 컬", "루마니안 데드리프트", "카프 레이즈"),
-    "SHOULDERS" to listOf("오버헤드 프레스", "덤벨 숄더 프레스", "사이드 레터럴 레이즈", "리어 델트 플라이", "페이스 풀"),
-    "CHEST" to listOf("벤치프레스", "인클라인 벤치프레스", "덤벨 프레스", "체스트 플라이", "푸시업", "딥스"),
-    "ARMS" to listOf("바벨 컬", "덤벨 컬", "해머 컬", "트라이셉스 푸시다운", "라잉 트라이셉스 익스텐션"),
-    "CORE" to listOf("플랭크", "크런치", "레그 레이즈", "행잉 레그 레이즈", "AB 롤아웃"),
-    "FULL_BODY" to listOf("버피", "케틀벨 스윙", "클린 앤 프레스", "스러스터")
+    "BACK" to listOf("랫풀다운", "풀업", "바벨 로우", "시티드 로우", "원암 덤벨 로우", "데드리프트",
+        "뉴트럴 그립 랫풀다운", "언더그립 랫풀다운", "원암 케이블 로우", "체스트 서포티드 로우",
+        "티바 로우", "펜들레이 로우", "머신 하이 로우", "머신 로우", "스트레이트 암 풀다운", "친업", "인버티드 로우", "덤벨 풀오버"),
+    "LEGS" to listOf("스쿼트", "레그 프레스", "레그 익스텐션", "레그 컬", "루마니안 데드리프트", "카프 레이즈",
+        "프론트 스쿼트", "고블릿 스쿼트", "핵 스쿼트", "스미스 스쿼트", "불가리안 스플릿 스쿼트",
+        "덤벨 런지", "리버스 런지", "워킹 런지", "스텝업", "힙 쓰러스트", "글루트 브리지", "힙 어브덕션",
+        "힙 어덕션", "시티드 레그 컬", "라잉 레그 컬", "시티드 카프 레이즈", "싱글 레그 프레스", "케이블 킥백"),
+    "SHOULDERS" to listOf("오버헤드 프레스", "덤벨 숄더 프레스", "사이드 레터럴 레이즈", "리어 델트 플라이", "페이스 풀",
+        "아놀드 프레스", "머신 숄더 프레스", "스미스 숄더 프레스", "케이블 레터럴 레이즈", "머신 레터럴 레이즈",
+        "덤벨 프론트 레이즈", "리버스 펙덱", "랜드마인 프레스", "덤벨 슈러그", "바벨 슈러그"),
+    "CHEST" to listOf("벤치프레스", "인클라인 벤치프레스", "덤벨 프레스", "체스트 플라이", "푸시업", "딥스",
+        "인클라인 덤벨 프레스", "디클라인 벤치프레스", "머신 체스트 프레스", "인클라인 머신 프레스",
+        "스미스 벤치프레스", "스미스 인클라인 프레스", "덤벨 플라이", "인클라인 덤벨 플라이",
+        "펙덱 플라이", "케이블 크로스오버", "로우 케이블 플라이", "인클라인 푸시업", "디클라인 푸시업"),
+    "ARMS" to listOf("바벨 컬", "덤벨 컬", "해머 컬", "트라이셉스 푸시다운", "라잉 트라이셉스 익스텐션",
+        "EZ바 컬", "프리처 컬", "인클라인 덤벨 컬", "컨센트레이션 컬", "케이블 컬", "리버스 컬",
+        "로프 푸시다운", "오버헤드 케이블 익스텐션", "덤벨 오버헤드 익스텐션", "덤벨 킥백",
+        "클로즈 그립 벤치프레스", "리스트 컬", "리버스 리스트 컬"),
+    "CORE" to listOf("플랭크", "크런치", "레그 레이즈", "행잉 레그 레이즈", "AB 롤아웃",
+        "케이블 크런치", "머신 크런치", "리버스 크런치", "바이시클 크런치", "행잉 니 레이즈",
+        "데드 버그", "버드 독", "러시안 트위스트", "팔로프 프레스", "케이블 우드초퍼", "싯업"),
+    "FULL_BODY" to listOf("버피", "케틀벨 스윙", "클린 앤 프레스", "스러스터",
+        "덤벨 스내치", "케틀벨 클린", "터키시 겟업", "맨메이커", "메디신볼 슬램")
 )
 
 private data class SetDraft(val weight: String = "", val reps: String = "")
