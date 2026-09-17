@@ -35,17 +35,17 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-fun SupabaseAccountDialog(config: SupabaseConfig, onDismiss: () -> Unit) {
+fun SupabaseAccountDialog(config: SupabaseConfig, onDismiss: () -> Unit, onSessionChanged: () -> Unit = {}) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = null,
-        text = { SupabaseAccountSection(config) },
+        text = { SupabaseAccountSection(config, onSessionChanged) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("닫기") } }
     )
 }
 
 @Composable
-fun SupabaseAccountSection(config: SupabaseConfig) {
+fun SupabaseAccountSection(config: SupabaseConfig, onSessionChanged: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val auth = remember(config) { SupabaseAuth(context, config) }
     val scope = rememberCoroutineScope()
@@ -106,6 +106,7 @@ fun SupabaseAccountSection(config: SupabaseConfig) {
                         try {
                             auth.signOut()
                             session = null
+                            onSessionChanged()
                             message = "로그아웃했어요."
                         } finally { busy = false }
                     }
@@ -120,11 +121,13 @@ fun SupabaseAccountSection(config: SupabaseConfig) {
                     Button(enabled = !busy, onClick = { launchAuth {
                         val result = auth.signIn(email, password)
                         session = result.session
+                        onSessionChanged()
                         message = result.message
                     } }, modifier = Modifier.weight(1f)) { Text("로그인") }
                     TextButton(enabled = !busy, onClick = { launchAuth {
                         val result = auth.signUp(email, password)
                         session = result.session
+                        onSessionChanged()
                         message = result.message
                     } }, modifier = Modifier.weight(1f)) { Text("회원가입") }
                 }

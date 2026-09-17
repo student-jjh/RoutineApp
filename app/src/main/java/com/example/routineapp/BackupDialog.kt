@@ -46,7 +46,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () -> Unit) {
+fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () -> Unit, onCloudSyncResolved: () -> Unit = {}) {
     val context = LocalContext.current
     val repository = remember(database) { RoutineBackupRepository(database) }
     val scope = rememberCoroutineScope()
@@ -127,11 +127,11 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                         }
                     }
                     if (cloudConfig != null) {
-                        SupabaseAccountSection(cloudConfig)
+                        SupabaseAccountSection(cloudConfig, onSessionChanged = onCloudSyncResolved)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(enabled = enabled, onClick = {
                                 perform("클라우드 백업 설정을 확인해 주세요.") {
-                                    val session = cloudAuth?.currentSession() ?: error("먼저 계정에 로그인해 주세요.")
+                            val session = cloudAuth?.sessionForRequest() ?: error("먼저 계정에 로그인해 주세요.")
                                     val data = repository.snapshot(installedOn)
                                     val content = RoutineBackupCodec.encode(data)
                                     cloudBackup?.upload(session, content)
@@ -143,12 +143,37 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 백업") }
                             OutlinedButton(enabled = enabled, onClick = {
                                 perform("클라우드 백업을 불러오지 못했어요.") {
-                                    val session = cloudAuth?.currentSession() ?: error("먼저 계정에 로그인해 주세요.")
+                                    val session = cloudAuth?.sessionForRequest() ?: error("먼저 계정에 로그인해 주세요.")
                                     val content = cloudBackup?.download(session) ?: error("클라우드 설정이 없어요.")
                                     pending = withContext(Dispatchers.IO) { RoutineBackupCodec.decode(content) }
                                     message = "클라우드 백업을 불러왔어요."
                                 }
                             }, modifier = Modifier.weight(1f)) { Text("클라우드 복원") }
+                        }
+                        cloudAuth?.currentSession()?.let { session ->
+                            if (com.example.routineapp.data.CloudSyncState.needsChoice(context, session.user.id)) {
+                                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("기존 클라우드 백업이 있어요", style = MaterialTheme.typography.titleSmall)
+                                        Text("현재 기기의 기록으로 덮어쓰기 전에 복원 여부를 선택해 주세요.", style = MaterialTheme.typography.bodySmall)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(enabled = enabled, onClick = {
+                                                perform("클라우드 백업을 불러오지 못했어요.") {
+                                                    val freshSession = cloudAuth.sessionForRequest() ?: error("로그인이 필요해요.")
+                                                    val content = cloudBackup?.download(freshSession) ?: error("클라우드 설정이 없어요.")
+                                                    pending = withContext(Dispatchers.IO) { RoutineBackupCodec.decode(content) }
+                                                    message = "복원할 백업을 확인해 주세요."
+                                                }
+                                            }, modifier = Modifier.weight(1f)) { Text("백업 확인") }
+                                            TextButton(enabled = enabled, onClick = {
+                                                com.example.routineapp.data.CloudSyncState.resolve(context, session.user.id)
+                                                message = "현재 기록으로 시작했어요. 이제 자동 백업을 사용해요."
+                                                onCloudSyncResolved()
+                                            }, modifier = Modifier.weight(1f)) { Text("현재 기록으로 시작") }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     Button(onClick = {
@@ -185,6 +210,8 @@ fun BackupDialog(database: AppDatabase, installedOn: LocalDate, onDismiss: () ->
             if (preview != null) TextButton(enabled = enabled, onClick = {
                 perform("복원하지 못했어요. 기존 기록은 변경하지 않았어요.") {
                     repository.restore(preview)
+                    cloudAuth?.currentSession()?.let { com.example.routineapp.data.CloudSyncState.resolve(context, it.user.id) }
+                    onCloudSyncResolved()
                     pending = null
                     message = "복원했어요. 루틴과 기록 화면에 반영됐어요."
                 }

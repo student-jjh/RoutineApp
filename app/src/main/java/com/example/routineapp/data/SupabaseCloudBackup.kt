@@ -6,6 +6,13 @@ import java.net.HttpURLConnection
 import java.net.URI
 
 class SupabaseCloudBackup(private val config: SupabaseConfig) {
+    suspend fun hasBackup(session: SupabaseSession): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            request("HEAD", objectUrl(session.user.id), session, null, emptyMap())
+            true
+        }.getOrDefault(false)
+    }
+
     suspend fun upload(session: SupabaseSession, content: String) = withContext(Dispatchers.IO) {
         request(
             method = "POST",

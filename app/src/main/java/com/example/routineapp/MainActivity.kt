@@ -118,6 +118,7 @@ import java.time.DayOfWeek
 import java.time.YearMonth
 import java.time.Instant
 import com.example.routineapp.data.SupabaseAuth
+import com.example.routineapp.data.AutoBackupCoordinator
 
 class MainActivity : ComponentActivity() {
     private var healthRefreshVersion by mutableStateOf(0)
@@ -202,10 +203,19 @@ private fun RoutineScreen(
     var installedOn by remember(context) { mutableStateOf(appInstalledDate(context)) }
     var showBackup by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showAccount by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var authVersion by remember { mutableStateOf(0) }
     val supabaseConfig = remember {
         if (BuildConfig.SUPABASE_URL.isBlank()) null
         else SupabaseConfig(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY)
     }
+    val autoBackup = remember(database, supabaseConfig) {
+        supabaseConfig?.let { AutoBackupCoordinator(context, database, it) }
+    }
+    var routinesLoaded by remember { mutableStateOf(false) }
+    var completionsLoaded by remember { mutableStateOf(false) }
+    var strengthRecordsLoaded by remember { mutableStateOf(false) }
+    var strengthSetsLoaded by remember { mutableStateOf(false) }
+    var customExercisesLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(database) {
         val backupDao = database.backupDao()
         backupDao.initializeMetadata(com.example.routineapp.data.AppMetadataEntity("historyStart", appInstalledDate(context).toString()))
@@ -285,6 +295,7 @@ private fun RoutineScreen(
         dao.observeAll().collect { savedRoutines ->
             routines.clear()
             routines.addAll(savedRoutines)
+            routinesLoaded = true
         }
     }
 
@@ -292,6 +303,7 @@ private fun RoutineScreen(
         completionDao.observeAll().collect { savedCompletions ->
             completions.clear()
             completions.addAll(savedCompletions)
+            completionsLoaded = true
         }
     }
 
@@ -299,6 +311,7 @@ private fun RoutineScreen(
         strengthRecordDao.observeAll().collect { savedRecords ->
             strengthRecords.clear()
             strengthRecords.addAll(savedRecords)
+            strengthRecordsLoaded = true
         }
     }
 
@@ -306,6 +319,7 @@ private fun RoutineScreen(
         strengthSetDao.observeAll().collect { savedSets ->
             strengthSets.clear()
             strengthSets.addAll(savedSets)
+            strengthSetsLoaded = true
         }
     }
 
@@ -313,6 +327,24 @@ private fun RoutineScreen(
         customExerciseDao.observeAll().collect { savedExercises ->
             customExercises.clear()
             customExercises.addAll(savedExercises)
+            customExercisesLoaded = true
+        }
+    }
+
+    LaunchedEffect(
+        autoBackup, authVersion, routinesLoaded, completionsLoaded, strengthRecordsLoaded,
+        strengthSetsLoaded, customExercisesLoaded, routines.hashCode(), completions.hashCode(),
+        strengthRecords.hashCode(), strengthSets.hashCode(), customExercises.hashCode()
+    ) {
+        if (autoBackup != null && routinesLoaded && completionsLoaded && strengthRecordsLoaded &&
+            strengthSetsLoaded && customExercisesLoaded
+        ) {
+            kotlinx.coroutines.delay(900)
+            runCatching { autoBackup.backupIfReady(installedOn) }
+                .onFailure {
+                    context.getSharedPreferences("backup_status", 0).edit()
+                        .putBoolean("autoBackupPending", true).apply()
+                }
         }
     }
 
@@ -943,12 +975,21 @@ private fun RoutineScreen(
     }
 
     if (showBackup) {
-        BackupDialog(database, installedOn, onDismiss = { showBackup = false })
+        BackupDialog(
+            database,
+            installedOn,
+            onDismiss = { showBackup = false },
+            onCloudSyncResolved = { authVersion++ }
+        )
     }
 
     if (showAccount) {
         if (supabaseConfig != null) {
-            SupabaseAccountDialog(supabaseConfig, onDismiss = { showAccount = false })
+            SupabaseAccountDialog(
+                supabaseConfig,
+                onDismiss = { showAccount = false },
+                onSessionChanged = { authVersion++ }
+            )
         } else {
             AlertDialog(
                 onDismissRequest = { showAccount = false },

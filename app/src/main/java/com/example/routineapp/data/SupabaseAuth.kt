@@ -27,6 +27,17 @@ class SupabaseAuth(private val context: Context, private val config: SupabaseCon
         return SupabaseSession(access, refresh, SupabaseUser(userId, preferences.getString("email", null)))
     }
 
+    suspend fun sessionForRequest(): SupabaseSession? = withContext(Dispatchers.IO) {
+        val session = currentSession() ?: return@withContext null
+        val expiresAt = preferences.getLong("expiresAt", 0L)
+        if (expiresAt == 0L || expiresAt > System.currentTimeMillis() + 60_000L) return@withContext session
+        runCatching {
+            val response = request("${config.url}/auth/v1/token?grant_type=refresh_token", "POST",
+                JSONObject().put("refresh_token", session.refreshToken))
+            sessionFrom(response).also(::save)
+        }.getOrElse { session }
+    }
+
     suspend fun signUp(email: String, password: String): AuthResult = withContext(Dispatchers.IO) {
         validateCredentials(email, password)
         val redirect = URLEncoder.encode(REDIRECT_URI, Charsets.UTF_8.name())
@@ -73,6 +84,7 @@ class SupabaseAuth(private val context: Context, private val config: SupabaseCon
             .putString("refreshToken", session.refreshToken)
             .putString("userId", session.user.id)
             .putString("email", session.user.email)
+            .putLong("expiresAt", System.currentTimeMillis() + 3_600_000L)
             .apply()
     }
 
